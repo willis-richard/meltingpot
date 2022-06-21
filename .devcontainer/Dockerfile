@@ -8,10 +8,6 @@ FROM mcr.microsoft.com/vscode/devcontainers/python:0-${VARIANT}
 # ARG NODE_VERSION="none"
 # RUN if [ "${NODE_VERSION}" != "none" ]; then su vscode -c "umask 0002 && . /usr/local/share/nvm/nvm.sh && nvm install ${NODE_VERSION} 2>&1"; fi
 
-# Update
-RUN sudo apt update
-RUN sudo apt upgrade -y
-
 # Install bazel
 RUN sudo apt install apt-transport-https curl gnupg
 RUN curl -fsSL https://bazel.build/bazel-release.pub.gpg | gpg --dearmor >bazel-archive-keyring.gpg
