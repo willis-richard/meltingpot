@@ -24,12 +24,9 @@ RUN sudo apt install bazel -y
 RUN pip3 install pytest
 
 # Install dmlab2d
-# RUN pip3 install https://github.com/deepmind/lab2d/releases/download/release_candidate_2022-03-24/dmlab2d-1.0-cp39-cp39-manylinux_2_31_x86_64.whl
+RUN pip3 install https://github.com/deepmind/lab2d/releases/download/release_candidate_2022-03-24/dmlab2d-1.0-cp39-cp39-manylinux_2_31_x86_64.whl
 
 # Install the meltingpot assets
 # RUN curl -L https://storage.googleapis.com/dm-meltingpot/meltingpot-assets-1.0.0.tar.gz \
 #     | tar -xz --directory=meltingpot
 # RUN pip3 install .
-
-# Run install script
-# RUN ./install.sh
