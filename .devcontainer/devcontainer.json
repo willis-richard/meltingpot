@@ -9,9 +9,9 @@
 			// Update 'VARIANT' to pick a Python version: 3, 3.10, 3.9, 3.8, 3.7, 3.6
 			// Append -bullseye or -buster to pin to an OS version.
 			// Use -bullseye variants on local on arm64/Apple Silicon.
-			"VARIANT": "3.9",
+			"VARIANT": "3.9"
 			// Options
-			"NODE_VERSION": "lts/*"
+			// "NODE_VERSION": "lts/*"
 		}
 	},
 
@@ -38,7 +38,8 @@
 			// Add the IDs of extensions you want installed when the container is created.
 			"extensions": [
 				"ms-python.python",
-				"ms-python.vscode-pylance"
+				"ms-python.vscode-pylance",
+				"ms-azuretools.vscode-docker"
 			]
 		}
 	},
