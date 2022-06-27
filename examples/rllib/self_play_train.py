@@ -13,12 +13,14 @@
 # limitations under the License.
 
 import os
+
 from ray import init
+from ray.rllib.agents.ppo import PPOConfig
 from ray.rllib.policy.policy import PolicySpec
 from ray.tune import tune
-from ray.tune.schedulers import PopulationBasedTraining
 from ray.tune.registry import register_env
-from ray.rllib.agents.ppo import PPOConfig
+from ray.tune.schedulers import PopulationBasedTraining
+
 from examples.rllib import utils
 from meltingpot.python import substrate
 
