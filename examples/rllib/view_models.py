@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Runs the bots trained in self_play_train.py and renders in pygame.
+"""
+Runs the bots trained in self_play_train.py and renders in pygame.
 
 You must provide experiment_state, expected to be
 ~/ray_results/PPO/experiment_state_YOUR_RUN_ID.json
@@ -27,6 +28,7 @@ from ray.tune.analysis.experiment_analysis import ExperimentAnalysis
 from ray.tune.registry import register_env
 
 from examples.rllib import utils
+from meltingpot.python.human_players import level_playing_utils
 
 
 def main():
@@ -39,6 +41,10 @@ def main():
       " the last training run created by self_play_train.py. If you want to use"
       " a specific run, provide a path, expected to be of the format "
       " ~/ray_results/PPO/experiment_state-DATETIME.json")
+  parser.add_argument(
+      "--human",
+      action="store_true",
+      help="human talks the place of one of the bots")
 
   args = parser.parse_args()
 
@@ -61,7 +67,12 @@ def main():
   env = utils.env_creator(config["env_config"]).get_dmlab2d_env()
 
   num_bots = config["env_config"]["num_players"]
-  bots = [utils.RayModelPolicy(trainer, "av")] * num_bots
+  if args.human:
+    num_bots = num_bots - 1
+  bots = [
+      utils.RayModelPolicy(
+          trainer, config["env_config"]["individual_observation_names"], "av")
+  ] * num_bots
 
   timestep = env.reset()
   states = [bot.initial_state() for bot in bots]
@@ -69,7 +80,7 @@ def main():
 
   # Configure the pygame display
   scale = 4
-  fps = 5
+  fps = 8
 
   pygame.init()
   clock = pygame.time.Clock()
@@ -78,6 +89,8 @@ def main():
   shape = obs_spec[0]["WORLD.RGB"].shape
   game_display = pygame.display.set_mode(
       (int(shape[1] * scale), int(shape[0] * scale)))
+
+  total_rewards = np.zeros(config["env_config"]["num_players"])
 
   for _ in range(config["horizon"]):
     obs = timestep.observation[0]["WORLD.RGB"]
@@ -91,6 +104,22 @@ def main():
     pygame.display.update()
     clock.tick(fps)
 
+    if args.human:
+      while True:
+        a = 0
+        for event in pygame.event.get():
+          if event.type == pygame.KEYDOWN:
+            a = level_playing_utils.get_direction_pressed()
+            break
+          # TODO: fix bug where two quick presses, e.g. 1,2, are counted as 1,1
+
+        if a != 0:
+          break
+
+      human_action = [a]
+    else:
+      human_action = []
+
     for i, bot in enumerate(bots):
       timestep_bot = dm_env.TimeStep(
           step_type=timestep.step_type,
@@ -100,7 +129,11 @@ def main():
 
       actions[i], states[i] = bot.step(timestep_bot, states[i])
 
-    timestep = env.step(actions)
+    timestep = env.step(actions + human_action)
+    print(actions + human_action, timestep.reward)
+    total_rewards = total_rewards + timestep.reward
+
+  print("Total rewards: {}".format(total_rewards))
 
 
 if __name__ == "__main__":
