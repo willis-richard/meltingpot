@@ -57,8 +57,16 @@ def main():
       default_metric="episode_reward_mean",
       default_mode="max")
 
-  config = experiment.best_config
-  checkpoint_path = experiment.best_checkpoint
+  best_trial = experiment.get_best_trial(scope="last")
+  config = best_trial.config
+  checkpoint_path = best_trial.checkpoint.value
+  # checkpoint_path = experiment.get_trial_checkpoints_paths(best_trial)[-1][0]
+  # config = experiment.get_best_config()
+  # checkpoint_path = experiment.get_best_checkpoint()
+  # TODO: Do I need a serious evaluation during these passes? Would PBT then use that?
+
+  config["explore"] = False
+  config["in_evaluation"] = True
 
   trainer = get_trainer_class(agent_algorithm)(config=config)
   trainer.restore(checkpoint_path)
