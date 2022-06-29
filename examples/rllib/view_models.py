@@ -13,9 +13,6 @@
 # limitations under the License.
 """
 Runs the bots trained in self_play_train.py and renders in pygame.
-
-You must provide experiment_state, expected to be
-~/ray_results/PPO/experiment_state_YOUR_RUN_ID.json
 """
 
 import argparse
@@ -36,19 +33,19 @@ def main():
   parser.add_argument(
       "--experiment_state",
       type=str,
-      default="~/ray_results/PPO",
+      default="~/ray_results/A3C",
       help="ray.tune experiment_state to load. The default setting will load"
       " the last training run created by self_play_train.py. If you want to use"
       " a specific run, provide a path, expected to be of the format "
-      " ~/ray_results/PPO/experiment_state-DATETIME.json")
+      " ~/ray_results/A3C/experiment_state-DATETIME.json")
   parser.add_argument(
       "--human",
       action="store_true",
-      help="human talks the place of one of the bots")
+      help="a human controls one of the bots")
 
   args = parser.parse_args()
 
-  agent_algorithm = "PPO"
+  agent_algorithm = "A3C"
 
   register_env("meltingpot", utils.env_creator)
 
