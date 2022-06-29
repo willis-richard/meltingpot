@@ -417,7 +417,7 @@ def create_avatar_object(player_idx: int,
               "component": "LocationObserver",
               "kwargs": {
                   "objectIsAvatar": True,
-                  # "alsoReportOrientation": True
+                  "alsoReportOrientation": False
               }
           },
       ]
@@ -469,6 +469,7 @@ def get_config():
 
   # Action set configuration.
   config.action_set = ACTION_SET
+
   # Observation format configuration.
   config.individual_observation_names = [
       "WORLD.RGB",
@@ -480,15 +481,14 @@ def get_config():
       "WORLD.RGB",
   ]
 
-  # TODO: Added later, not sure what it is
-  # # The specs of the environment (from a single-agent perspective).
-  # config.action_spec = specs.action(len(ACTION_SET))
-  # config.timestep_spec = specs.timestep({
-  #     "RGB": specs.OBSERVATION["RGB"],
-  #     "READY_TO_SHOOT": specs.OBSERVATION["READY_TO_SHOOT"],
-  #     "POSITION": specs.OBSERVATION["POSITION"],
-  #     "ORIENTATION": specs.OBSERVATION["ORIENTATION"],
-  #     "WORLD.RGB": specs.rgb(248, 456),
-  # })
+  # The specs of the environment (from a single-agent perspective).
+  config.action_spec = specs.action(len(ACTION_SET))
+  config.timestep_spec = specs.timestep({
+      # "RGB": specs.OBSERVATION["RGB"],
+      # "READY_TO_SHOOT": specs.OBSERVATION["READY_TO_SHOOT"],
+      # "POSITION": specs.OBSERVATION["POSITION"],
+      # "ORIENTATION": specs.OBSERVATION["ORIENTATION"],
+      "WORLD.RGB": specs.rgb(5*8, 5*8),
+  })
 
   return config
