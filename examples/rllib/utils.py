@@ -13,12 +13,13 @@
 # limitations under the License.
 """MeltingPotEnv as a MultiAgentEnv wrapper to interface with RLLib."""
 
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 import dm_env
 import dmlab2d
 from gym import spaces
 from ml_collections import config_dict
+import numpy as np
 from ray.rllib.agents import trainer
 from ray.rllib.env import multi_agent_env
 from ray.rllib.policy.sample_batch import DEFAULT_POLICY_ID
@@ -28,6 +29,7 @@ from meltingpot.python import substrate
 from meltingpot.python.utils.bots import policy
 
 PLAYER_STR_FORMAT = "player_{index}"
+ROUND = "ROUND"
 
 
 class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
@@ -50,22 +52,37 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
         for i, agent_id in enumerate(self._ordered_agent_ids)
     })
 
-  def __init__(self, env: dmlab2d.Environment, individual_obs: List[str]):
+  def _add_round_to_observations(self, observations: Dict) -> None:
+    for agent_id in self._ordered_agent_ids:
+      observations[agent_id][ROUND] = self._round
+
+  def __init__(self, env: dmlab2d.Environment, individual_obs: List[str],
+               n_rounds: int):
+    """
+    Args:
+      env: meltingpot environment to be wrapped
+      individual_obs: the observations that players have access to
+      n_rounds: number of rounds in an episode
+    """
     self._env = env
-    self._individual_obs = individual_obs
+    self._individual_obs = individual_obs + [ROUND]
     self._num_players = len(self._env.observation_spec())
     self._ordered_agent_ids = [
         PLAYER_STR_FORMAT.format(index=index)
         for index in range(self._num_players)
     ]
+    self._round = np.zeros((1,), dtype=np.uint16)
     # RLLib requires environments to have the following member variables:
     # observation_space, action_space, and _agent_ids
     self._agent_ids = set(self._ordered_agent_ids)
+    observation_space = utils.spec_to_space(self._env.observation_spec())
+    # Add in the round number
+    for obs in observation_space:
+      obs[ROUND] = spaces.Box(0, n_rounds, (1,), np.uint16)
     # RLLib expects a dictionary of agent_id to observation or action,
     # Melting Pot uses a tuple, so we convert
     self.observation_space = self._convert_spaces_tuple_to_dict(
-        utils.spec_to_space(self._env.observation_spec()),
-        remove_world_observations=True)
+        observation_space, remove_world_observations=True)
     self.action_space = self._convert_spaces_tuple_to_dict(
         utils.spec_to_space(self._env.action_spec()))
     super().__init__()
@@ -73,12 +90,17 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
   def reset(self):
     """See base class."""
     timestep = self._env.reset()
-    return utils.timestep_to_observations(timestep, self._individual_obs)
+    self._round = np.zeros((1,), dtype=np.uint16)
+    observations = utils.timestep_to_observations(timestep,
+                                                  self._individual_obs)
+    self._add_round_to_observations(observations)
+    return observations
 
   def step(self, action_dict):
     """See base class."""
     actions = [action_dict[agent_id] for agent_id in self._ordered_agent_ids]
     timestep = self._env.step(actions)
+    self._round = self._round + 1
     rewards = {
         agent_id: timestep.reward[index]
         for index, agent_id in enumerate(self._ordered_agent_ids)
@@ -88,6 +110,8 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
 
     observations = utils.timestep_to_observations(timestep,
                                                   self._individual_obs)
+    self._add_round_to_observations(observations)
+
     return observations, rewards, done, info
 
   def close(self):
@@ -101,8 +125,10 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
 
 def env_creator(env_config):
   """Outputs an environment for registering."""
-  env = substrate.build(config_dict.ConfigDict(env_config))
-  env = MeltingPotEnv(env, env_config["individual_observation_names"])
+  env_config_dict = config_dict.ConfigDict(env_config)
+  env = substrate.build(env_config_dict)
+  env = MeltingPotEnv(env, env_config["individual_observation_names"],
+                      env_config_dict.lab2d_settings["maxEpisodeLengthFrames"])
   return env
 
 

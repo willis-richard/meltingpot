@@ -74,9 +74,10 @@ def main():
   num_bots = config["env_config"]["num_players"]
   if args.human:
     num_bots = num_bots - 1
+  obs_names = config["env_config"]["individual_observation_names"] + [utils.ROUND]
   bots = [
       utils.RayModelPolicy(
-          trainer, config["env_config"]["individual_observation_names"], "av")
+          trainer, obs_names, "av")
   ] * num_bots
 
   timestep = env.reset()
@@ -96,6 +97,8 @@ def main():
       (int(shape[1] * scale), int(shape[0] * scale)))
 
   total_rewards = np.zeros(config["env_config"]["num_players"])
+
+  n = np.zeros((1,), dtype=np.uint16)
 
   for _ in range(config["horizon"]):
     obs = timestep.observation[0]["WORLD.RGB"]
@@ -126,15 +129,18 @@ def main():
       human_action = []
 
     for i, bot in enumerate(bots):
+      observation = timestep.observation[i]
+      observation[utils.ROUND] = n
       timestep_bot = dm_env.TimeStep(
           step_type=timestep.step_type,
           reward=timestep.reward[i],
           discount=timestep.discount,
-          observation=timestep.observation[i])
+          observation=observation)
 
       actions[i], states[i] = bot.step(timestep_bot, states[i])
 
     timestep = env.step(actions + human_action)
+    n = n + 1
     print(actions + human_action, timestep.reward)
     total_rewards = total_rewards + timestep.reward
 
