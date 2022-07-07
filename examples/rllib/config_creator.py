@@ -19,6 +19,7 @@ import os
 
 from ray.rllib.agents.ppo import PPOConfig
 from ray.rllib.agents.registry import get_trainer_class
+from ray.tune import grid_search
 
 
 def generate_config(algo: str, model, env_config: Dict, num_cpus: int, policies: Dict,
@@ -47,8 +48,9 @@ def generate_config(algo: str, model, env_config: Dict, num_cpus: int, policies:
         shuffle_sequences=True,  # recommended to be True
         vf_loss_coeff=1.0,  # coefficient of the value function loss. not used?
         # TODO: find out what a sensible value should be -> log out loss stats
-        vf_clip_param=10.0,  # N.B. sensitive to reward scale.
+        vf_clip_param=2.0,  # N.B. sensitive to reward scale.
         entropy_coeff=0.003,
+        # entropy_coeff = grid_search([0.03, 0.01, 0.003, 0.001, 0.0003]),
         entropy_coeff_schedule=None,
         clip_param=0.3,
         grad_clip=None,
@@ -56,7 +58,7 @@ def generate_config(algo: str, model, env_config: Dict, num_cpus: int, policies:
             "type": "StochasticSampling"
         }).evaluation(
             evaluation_interval=25,
-            evaluation_duration=6,
+            evaluation_duration=num_cpus-1,
             always_attach_evaluation_results=False
         ).resources(
             num_cpus_per_worker=1,
@@ -113,6 +115,7 @@ def generate_config(algo: str, model, env_config: Dict, num_cpus: int, policies:
     config["rollout_fragment_length"] = 50
     config["vf_loss_coeff"] = 0.5
     config["entropy_coeff"] = 0.003
+    # config["entropy_coeff"] = grid_search([0.03, 0.01, 0.003, 0.001, 0.0003])
     # Workers sample async. Note that this increases the effective
     # rollout_fragment_length by up to 5x due to async buffering of batches.
     config["sample_async"] = True

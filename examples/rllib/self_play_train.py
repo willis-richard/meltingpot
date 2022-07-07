@@ -17,9 +17,9 @@ import argparse
 
 from ray import init
 from ray.rllib.policy.policy import PolicySpec
-from ray.tune import tune
+from ray.tune.tune import run
 from ray.tune.registry import register_env
-from ray.tune.schedulers import PopulationBasedTraining
+from ray.tune.schedulers import PB2
 
 from examples.rllib import config_creator
 from examples.rllib import utils
@@ -27,8 +27,7 @@ from meltingpot.python import substrate
 
 from tensorflow.keras.optimizers import RMSprop
 
-
-DEFAULT_ALGORITHM="A3C"
+DEFAULT_ALGORITHM = "A3C"
 
 # Setup for the neural network.
 # The strides of the first convolutional layer were chosen to perfectly line
@@ -51,8 +50,9 @@ custom_model = {
     "lstm_use_prev_action": True,  # False
     "lstm_use_prev_reward": True,  # False
     "lstm_cell_size": 256,  # 128
-    # This comes after the CNN before the post_fcnet_hiddens
-    # I am removing it because I have that flattening convnet layer anyway
+    # This it a linear layer after the CNN that resizes the number
+    # of outputs to match the post_fcnet_hiddens number of neurons.
+    # I am removing it because I flatten the convnet output in the last filter
     # If False, the final number of channels in the conv net
     # must be the same as post_fcnet_hiddens
     "no_final_linear": True  # True
@@ -60,6 +60,8 @@ custom_model = {
 
 # TODO: skip first conv net by using the layers, say WORLD.LAYER?
 # TODO: print out model and check where lstm is
+# TODO: Be able to colour agents by policy
+# TODO: Improve logging of results
 
 # https://iq.opengenus.org/same-and-valid-padding/
 # rllib gives padding "same" for the first n-1 layers,
@@ -93,6 +95,10 @@ def main():
       "--use_scheduler",
       action="store_true",
       help="whether to use the preconfigured scheduler")
+  parser.add_argument(
+      "--use_optimiser",
+      action="store_true",
+      help="whether to use the preconfigured scheduler")
 
   args = parser.parse_args()
 
@@ -123,32 +129,35 @@ def main():
               config={}),
   }
 
-  rmsprop = RMSprop(
+  optimiser = RMSprop(
       learning_rate=lr,
       rho=0.99,  # discount factor/decay
       momentum=0.0,
-      epsilon=1e-5)
+      epsilon=1e-5) if args.optimiser else None
 
   config = config_creator.generate_config(args.algorithm, custom_model,
                                           env_config, args.cpus, policies,
-                                          horizon, lr, rmsprop)
+                                          horizon, lr, optimiser)
 
-  scheduler = PopulationBasedTraining(
-      burn_in_period=25,
-      hyperparam_mutations={
-          "lr": [1e-4, 3e-5, 1e-5, 3e-6, 1e-6],
-          "entropy_coeff": [0.01, 0.003, 0.001],
-      },
-      log_config=True,
-      perturbation_interval=25,
-      quantile_fraction=0.25,
-      resample_probability=0.25,
+  scheduler = PB2(
       time_attr="training_iteration",
+      metric="episode_reward_mean",
+      mode="max",
+      burn_in_period=25,
+      perturbation_interval=25,
+      hyperparam_bounds={
+          "lr": [3e-4, 3e-6],
+          "entropy_coeff": [0.03, 0.0003],
+      },
+      quantile_fraction=0.25,
+      log_config=True,
   )
 
-  tune.run(
+  # No optimiser if lr scheduler
+  # can we do log gaussians?
+  run(
       args.algorithm,
-      stop={"training_iteration": 1000},
+      stop={"training_iteration": 250},
       checkpoint_at_end=True,
       checkpoint_freq=25,
       config=config,
