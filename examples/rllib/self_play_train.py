@@ -14,15 +14,16 @@
 """Runs an example of a self-play training experiment."""
 
 import argparse
+import random
 
 from ray import init
+from ray.rllib.agents.ppo import PPOConfig
 from ray.rllib.policy.policy import PolicySpec
-from ray.tune.tune import run
+from ray.tune import run, sample_from
 from ray.tune.registry import register_env
-from ray.tune.schedulers import PB2
+from ray.tune.schedulers.pb2 import PB2
 
-from examples.rllib import config_creator
-from examples.rllib import utils
+from examples.rllib import config_creator, utils
 from meltingpot.python import substrate
 
 from tensorflow.keras.optimizers import RMSprop
@@ -42,14 +43,14 @@ DEFAULT_ALGORITHM = "A3C"
 
 # examples conv nets are in ray.rllib.models.utils.get_filter_config
 custom_model = {
-    "conv_filters": [[16, [8, 8], 8], [32, [3, 3], 1], [128, [5, 5], 1]],
+    "conv_filters": [[16, [8, 8], 8], [32, [3, 3], 1], [64, [5, 5], 1]],
     "conv_activation": "relu",
-    "post_fcnet_hiddens": [128, 128],  # [64, 64]
+    "post_fcnet_hiddens": [64, 64],  # [64, 64]
     "post_fcnet_activation": "relu",
     "use_lstm": True,
-    "lstm_use_prev_action": True,  # False
-    "lstm_use_prev_reward": True,  # False
-    "lstm_cell_size": 256,  # 128
+    "lstm_use_prev_action": False,  # False
+    "lstm_use_prev_reward": False,  # False
+    "lstm_cell_size": 128,  # 128
     # This it a linear layer after the CNN that resizes the number
     # of outputs to match the post_fcnet_hiddens number of neurons.
     # I am removing it because I flatten the convnet output in the last filter
@@ -62,6 +63,7 @@ custom_model = {
 # TODO: print out model and check where lstm is
 # TODO: Be able to colour agents by policy
 # TODO: Improve logging of results
+# TODO: make apple re-spawn deterministic
 
 # https://iq.opengenus.org/same-and-valid-padding/
 # rllib gives padding "same" for the first n-1 layers,
@@ -99,6 +101,12 @@ def main():
       "--use_optimiser",
       action="store_true",
       help="whether to use the preconfigured scheduler")
+  parser.add_argument(
+      "--local_dir",
+      type=str,
+      default=None,
+      help="This is the path the results will be saved to, "
+      "defaults to ~/ray_results/.")
 
   args = parser.parse_args()
 
@@ -133,42 +141,83 @@ def main():
       learning_rate=lr,
       rho=0.99,  # discount factor/decay
       momentum=0.0,
-      epsilon=1e-5) if args.optimiser else None
+      epsilon=1e-5) if args.use_optimiser else None
 
-  config = config_creator.generate_config(args.algorithm, custom_model,
-                                          env_config, args.cpus, policies,
-                                          horizon, lr, optimiser)
+
+  config = PPOConfig().framework(
+      framework="tf2",
+      eager_tracing=True  # only applies if using tf2
+  ).training(
+      model=custom_model,
+      lr=sample_from(lambda spec: random.uniform(1e-3, 1e-5)),
+      gamma=0.99,  # Default=0.99
+      train_batch_size=12 * horizon,  # Default=4000
+      optimizer=optimiser,
+      # PPO specifics
+      use_critic=True,
+      use_gae=True,
+      lambda_=sample_from(lambda spec: random.uniform(0.9, 0.99)),
+      kl_coeff=0.2,
+      sgd_minibatch_size=128,  # Default=128
+      num_sgd_iter=30,  # Default=30
+      shuffle_sequences=True,  # recommended to be True
+      vf_loss_coeff=1.0,  # coefficient of the value function loss. not used?
+      # TODO: find out what a sensible value should be -> log out loss stats
+      vf_clip_param=2.0,  # N.B. sensitive to reward scale.
+      entropy_coeff=sample_from(lambda spec: random.uniform(0.03, 0.0003)),
+      # entropy_coeff = grid_search([0.03, 0.01, 0.003, 0.001, 0.0003]),
+      entropy_coeff_schedule=None,
+      clip_param=sample_from(lambda spec: random.uniform(0.1, 0.5)),
+      grad_clip=None,
+      kl_target=0.01).rollouts(
+          batch_mode="complete_episodes",
+          horizon=horizon,
+          num_rollout_workers=0,
+          rollout_fragment_length=100,
+      ).environment(
+          env_config=env_config,
+          env="meltingpot",
+      ).multi_agent(
+          count_steps_by="env_steps",
+          policies=policies,
+          policy_mapping_fn=lambda agent_id, episode, worker, **kwargs: "av",
+      ).debugging(log_level="INFO").to_dict()
 
   scheduler = PB2(
       time_attr="training_iteration",
       metric="episode_reward_mean",
       mode="max",
-      burn_in_period=25,
-      perturbation_interval=25,
+      perturbation_interval=10,
       hyperparam_bounds={
-          "lr": [3e-4, 3e-6],
+          "lr": [1e-3, 1e-5],
           "entropy_coeff": [0.03, 0.0003],
+          "lambda": [0.9, 0.99],
+          "clip_param": [0.1, 0.5],
       },
       quantile_fraction=0.25,
-      log_config=True,
+      log_config=False,  # True if you want to reconstruct the schedule
   )
 
-  # No optimiser if lr scheduler
-  # can we do log gaussians?
+  # TODO, what is observation_filter in trainer?
+  # TODO: add pb2_ppo_example df analysis
+
   run(
       args.algorithm,
       stop={"training_iteration": 250},
       checkpoint_at_end=True,
-      checkpoint_freq=25,
+      checkpoint_freq=10,
       config=config,
-      metric="episode_reward_mean",
-      mode="max",
+      # metric="episode_reward_mean",
+      # mode="max",
       log_to_file=True,
       num_samples=4 if args.use_scheduler else 1,
       scheduler=scheduler if args.use_scheduler else None,
       # resources_per_trial = {"cpu": 2, "gpu": 0},
       # reuse_actors=True,
-      restore=args.restore)
+      # restore=args.restore,
+      resume="LOCAL",
+      local_dir=args.local_dir,
+  )
 
 
 if __name__ == "__main__":

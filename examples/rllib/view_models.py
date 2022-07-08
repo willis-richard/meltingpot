@@ -45,7 +45,7 @@ def main():
 
   args = parser.parse_args()
 
-  agent_algorithm = "A3C"
+  agent_algorithm = "PPO"
 
   register_env("meltingpot", utils.env_creator)
 

@@ -56,11 +56,7 @@ def generate_config(algo: str, model, env_config: Dict, num_cpus: int, policies:
         grad_clip=None,
         kl_target=0.01).exploration(exploration_config={
             "type": "StochasticSampling"
-        }).evaluation(
-            evaluation_interval=25,
-            evaluation_duration=num_cpus-1,
-            always_attach_evaluation_results=False
-        ).resources(
+        }).resources(
             num_cpus_per_worker=1,
             # Use GPUs iff `RLLIB_NUM_GPUS` env var set to > 0.
             num_gpus=int(os.environ.get("RLLIB_NUM_GPUS", "0")),
@@ -99,8 +95,8 @@ def generate_config(algo: str, model, env_config: Dict, num_cpus: int, policies:
     config["num_gpus"] = int(os.environ.get("RLLIB_NUM_GPUS", "0"))
     config["log_level"] = "INFO"
     config["num_workers"] = num_cpus-1
-    config["evaluation_interval"] = 25
-    config["evaluation_duration"] = num_cpus-1
+    # config["evaluation_interval"] = 25
+    # config["evaluation_duration"] = num_cpus-1
 
     config["horizon"] = horizon
     config["batch_mode"] = "complete_episodes"
