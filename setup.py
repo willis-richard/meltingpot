@@ -70,6 +70,9 @@ setuptools.setup(
         'rllib': [
             'gym',
             'ray[rllib,default]==1.13.0',
+            'scikit-learn',
+            'GPUtil',
+            'GPy'
         ],
         'pettingzoo': [
             'pettingzoo>=1.18.0', 'supersuit>=3.3.0', 'stable-baselines3'
