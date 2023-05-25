@@ -13,7 +13,7 @@
 # limitations under the License.
 """MeltingPotEnv as a MultiAgentEnv wrapper to interface with RLLib."""
 
-from typing import Tuple
+from typing import List, Optional, Tuple
 
 import dm_env
 import dmlab2d
@@ -23,29 +23,77 @@ import numpy as np
 from ray.rllib import algorithms
 from ray.rllib.env import multi_agent_env
 from ray.rllib.policy.sample_batch import DEFAULT_POLICY_ID
+from ray.rllib.utils.typing import MultiAgentDict
 
 from examples import utils
 from meltingpot.python import substrate
 from meltingpot.python.utils.policies import policy
 
-PLAYER_STR_FORMAT = 'player_{index}'
+PLAYER_STR_FORMAT = "player_{index}"
 
 
 class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
   """An adapter between the Melting Pot substrates and RLLib MultiAgentEnv."""
 
-  def __init__(self, env: dmlab2d.Environment):
-    """Initializes the instance.
+  def _convert_spaces_tuple_to_dict(
+      self,
+      input_tuple: spaces.Tuple,
+      remove_world_observations: bool = False) -> spaces.Dict:
+    """Returns spaces tuple converted to a dictionary.
+
+    Args:
+      input_tuple: tuple to convert.
+      remove_world_observations: If True will remove non-player observations.
+    """
+    return spaces.Dict({
+        agent_id: (utils.remove_world_observations_from_space(
+            input_tuple[i], self._individual_obs)
+                   if remove_world_observations else input_tuple[i])
+        for i, agent_id in enumerate(self._ordered_agent_ids)
+    })
+
+  def _standard_rewards(self, reward):
+    return {
+        agent_id: reward[index]
+        for index, agent_id in enumerate(self._ordered_agent_ids)
+    }
+
+  def _linear_reward_transfer(self, reward):
+    return {
+        agent_id:
+        np.sum(np.array(reward, dtype=float) * self._reward_transfer[index])
+        for index, agent_id in enumerate(self._ordered_agent_ids)
+    }
+
+  def __init__(self,
+               env: dmlab2d.Environment,
+               individual_obs: List[str] = ["RGB"],
+               reward_transfer: Optional[List[List]] = None):
+    """Initialize the instance
 
     Args:
       env: dmlab2d environment to wrap. Will be closed when this wrapper closes.
+      individual_obs: the substrate observations to pass to the agents.
+      reward_transfer: a matrix specifying the amount of reward column player i
+        transfers to row player j.
+
     """
     self._env = env
+    self._individual_obs = individual_obs
     self._num_players = len(self._env.observation_spec())
     self._ordered_agent_ids = [
         PLAYER_STR_FORMAT.format(index=index)
         for index in range(self._num_players)
     ]
+    if reward_transfer is not None:
+      self._reward_transfer = np.array(reward_transfer, dtype=float)
+      assert self._reward_transfer.shape == (
+          self._num_players, self._num_players
+      ), "The reward gifting matrix must be of size (n_players,n_players)"
+      self._reward_transfer_fn = self._linear_reward_transfer
+    else:
+      self._reward_transfer_fn = self._standard_rewards
+
     # RLLib requires environments to have the following member variables:
     # observation_space, action_space, and _agent_ids
     self._agent_ids = set(self._ordered_agent_ids)
@@ -56,38 +104,46 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
         remove_world_observations=True)
     self.action_space = self._convert_spaces_tuple_to_dict(
         utils.spec_to_space(self._env.action_spec()))
+
+    self._action_space_in_preferred_format = True
+    self._obs_space_in_preferred_format = True
     super().__init__()
 
-  def reset(self):
+  def reset(
+      self,
+      *,
+      seed: Optional[int] = None,
+      options: Optional[dict] = None,
+  ) -> MultiAgentDict:
     """See base class."""
     timestep = self._env.reset()
-    return utils.timestep_to_observations(timestep)
+    obs = utils.timestep_to_observations(timestep, self._individual_obs)
+    return obs
 
-  def step(self, action):
+  def step(
+      self, action_dict
+  ) -> Tuple[MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict]:
     """See base class."""
-    actions = [action[agent_id] for agent_id in self._ordered_agent_ids]
+    actions = [action_dict[agent_id] for agent_id in self._ordered_agent_ids]
     timestep = self._env.step(actions)
-    rewards = {
-        agent_id: timestep.reward[index]
-        for index, agent_id in enumerate(self._ordered_agent_ids)
-    }
-    done = {'__all__': timestep.last()}
-    info = {}
+    rewards = self._reward_transfer_fn(timestep.reward)
+    done = {"__all__": timestep.last()}
+    infos = {}
 
-    observations = utils.timestep_to_observations(timestep)
-    return observations, rewards, done, info
+    obs = utils.timestep_to_observations(timestep, self._individual_obs)
+    return obs, rewards, done, infos
 
   def close(self):
     """See base class."""
     self._env.close()
 
   def get_dmlab2d_env(self):
-    """Returns the underlying DM Lab2D environment."""
+    """Return the underlying DM Lab2D environment."""
     return self._env
 
   # Metadata is required by the gym `Env` class that we are extending, to show
   # which modes the `render` method supports.
-  metadata = {'render.modes': ['rgb_array']}
+  metadata = {"render.modes": ["rgb_array"]}
 
   def render(self, mode: str) -> np.ndarray:
     """Render the environment.
@@ -105,36 +161,21 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
         into a video.
     """
     observation = self._env.observation()
-    world_rgb = observation['WORLD.RGB']
+    world_rgb = observation["WORLD.RGB"]
 
     # RGB mode is used for recording videos
-    if mode == 'rgb_array':
+    if mode == "rgb_array":
       return world_rgb
     else:
-      return super().render(mode=mode)
-
-  def _convert_spaces_tuple_to_dict(
-      self,
-      input_tuple: spaces.Tuple,
-      remove_world_observations: bool = False) -> spaces.Dict:
-    """Returns spaces tuple converted to a dictionary.
-
-    Args:
-      input_tuple: tuple to convert.
-      remove_world_observations: If True will remove non-player observations.
-    """
-    return spaces.Dict({
-        agent_id: (utils.remove_world_observations_from_space(input_tuple[i])
-                   if remove_world_observations else input_tuple[i])
-        for i, agent_id in enumerate(self._ordered_agent_ids)
-    })
+      return super().render()
 
 
 def env_creator(env_config):
   """Outputs an environment for registering."""
   env_config = config_dict.ConfigDict(env_config)
-  env = substrate.build(env_config['substrate'], roles=env_config['roles'])
-  env = MeltingPotEnv(env)
+  env = substrate.build_from_config(env_config, roles=env_config["roles"])
+  env = MeltingPotEnv(env, env_config["individual_observation_names"],
+                      env_config["reward_transfer"])
   return env
 
 
@@ -146,16 +187,19 @@ class RayModelPolicy(policy.Policy):
 
   def __init__(self,
                model: algorithms.Algorithm,
+               individual_obs: List[str],
                policy_id: str = DEFAULT_POLICY_ID) -> None:
     """Initialize a policy instance.
 
     Args:
       model: An rllib.trainer.Trainer checkpoint.
+      individual_obs: observation keys for the agent (not global observations)
       policy_id: Which policy to use (if trained in multi_agent mode)
     """
     self._model = model
-    self._prev_action = 0
+    self._individual_obs = individual_obs
     self._policy_id = policy_id
+    self._prev_action = 0
 
   def step(self, timestep: dm_env.TimeStep,
            prev_state: policy.State) -> Tuple[int, policy.State]:
@@ -163,7 +207,7 @@ class RayModelPolicy(policy.Policy):
     observations = {
         key: value
         for key, value in timestep.observation.items()
-        if 'WORLD' not in key
+        if key in self._individual_obs
     }
 
     action, state, _ = self._model.compute_single_action(
