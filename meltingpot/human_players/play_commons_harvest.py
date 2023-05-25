@@ -28,10 +28,18 @@ from meltingpot.configs.substrates import commons_harvest__partnership
 from meltingpot.human_players import level_playing_utils
 from ml_collections import config_dict
 
+from meltingpot.python.configs.substrates import commons_harvest__closed
+from meltingpot.python.configs.substrates import commons_harvest__open
+from meltingpot.python.configs.substrates import commons_harvest__partnership
+from meltingpot.python.configs.substrates import commons_harvest__simple
+from meltingpot.python.human_players import level_playing_utils
+
+
 environment_configs = {
     'commons_harvest__closed': commons_harvest__closed,
     'commons_harvest__open': commons_harvest__open,
     'commons_harvest__partnership': commons_harvest__partnership,
+    'commons_harvest__simple': commons_harvest__simple,
 }
 
 _ACTION_MAP = {
