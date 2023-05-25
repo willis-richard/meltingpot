@@ -1,0 +1,41 @@
+name: meltingpot
+channels:
+  - conda-forge
+dependencies:
+  - python=3.9
+
+  # framework
+  - tensorflow==2.9.1
+
+  # meltingpot deps
+  - absl-py==1.4.0
+  - chex==0.1.7
+  - dm-env==1.6
+  - immutabledict==2.2.4
+  - ml-collections==0.1.1
+  - networkx==3.1
+  - numpy==1.24.3
+  - pygame==2.2.0
+  - rx==3.2.0
+
+  # chex deps not handled correctly my conda atm
+  # compare https://github.com/deepmind/chex/blob/master/requirements/requirements.txt
+  # to $ conda search chex --channel conda-forge --info
+  # - jax==0.4.6  # chex requires jax, but has a broken dependency
+  # this is causing conflicts because it requires a later version fo jaxlib
+
+  # reward_transfer deps
+  - pandas==2.0.1
+  - ray-rllib==2.0.1
+
+  # # optionals
+  # - jupyterlab
+
+  - pip==23.1.2
+  - pip:
+    # hack to fix jax versions
+    - jax==0.4.7
+    - jaxlib==0.4.6
+
+  # install dmlab2d with install script
+  # bash install-dmlab2d.sh

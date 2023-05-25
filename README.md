@@ -1,13 +1,47 @@
-# Resolving social dilemmas through reward transfer commitments
+# Resolving Social Dilemmas Through Reward Transfer Commitments
 
-This repository contains the code to reproduce the experiments from https://alaworkshop2023.github.io/papers/ALA2023_paper_65.pdf on branch resolving_sd.
-For further information, checkout that branch and view the README.md.
+This is the code to reproduce the experiments from https://alaworkshop2023.github.io/papers/ALA2023_paper_65.pdf.
+
+## Installation
+
+Install the dependencies with
+
 
 ```shell
-git clone https://github.com/Muff2n/meltingpot.git --branch resolving_sd --single-branch --depth 1
+conda create -f environment.yml
+conda activate reward_transfer
+bash install-dmlab2d.sh
 ```
 
-# Melting Pot
+## Experiments
+
+To run the reward gifting experiments
+
+```shell
+python3 reward_transfer/experiments.py --num_cpus <YOUR_N_CPUS> --local_dir <PATH_TO_OUTPUTS> --selfp_episodes 2000 --independent_episodes 4000 --regrowth_probability 0.05 --evaluate
+python3 reward_transfer/plots.py --gifting --data_path <PATH_TO_OUTPUTS>/df_indep_det.csv --plot_name <PATH_TO_PLOT_OUTPUT> --regrowth_probability 0.05
+```
+
+To run the reward exchange experiments
+
+```shell
+python3 reward_transfer/experiments.py --num_cpus <YOUR_N_CPUS> --local_dir <PATH_TO_OUTPUTS> --selfp_episodes 2000 --independent_episodes 4000 --regrowth_probability 0.05 --evaluate
+python3 reward_transfer/plots.py --data_path <PATH_TO_OUTPUTS>/df_indep_det.csv --plot_name <PATH_TO_PLOT_OUTPUT> --regrowth_probability 0.05
+```
+
+## Citation
+
+```bibtex
+@inproceedings{willis2023learning,
+  title = {Resolving Social Dilemmas through Reward Transfer Commitments},
+  booktitle = {Proceedings of the {{Adaptive}} and {{Learning Agents Workshop}}},
+  author = {Willis, Richard and Luck, Michael},
+  year = {2023},
+  month = may,
+}
+```
+
+# Original Melting Pot Readme
 
 *A suite of test scenarios for multi-agent reinforcement learning.*
 
