@@ -79,6 +79,17 @@ function Avatar:__init__(kwargs)
       --     centered (boolean)
       --   }
       {'view', args.tableType},
+      --   If true, provide the avatar the entire map as its RGB input.
+      --   You must also configure the view entry as follows:
+      --   {
+      --     "left": 0,
+      --     "right": <map_width> - 1,
+      --     "forward": 0,
+      --     "backward": <map_height> - 1,
+      --     "centered": False
+      --   }
+      --   N.B. not used in Melting Pot substrates.
+      {'fullObservations', args.default(false), args.booleanType},
       -- If `useAbsoluteCoordinates` is true then the avatar moves by selecting
       -- an absolute direction {North, East, South, West} rather than moving
       -- forward/backward/turning along its facing direction. That is, it
@@ -103,6 +114,7 @@ function Avatar:__init__(kwargs)
   self._config.actionOrder = kwargs.actionOrder
   self._config.actionSpec = kwargs.actionSpec
   self._config.view = kwargs.view
+  self._config.fullObservations = kwargs.fullObservations
 
   self._config._index = kwargs.index
   self._config.initialSpawnGroup = kwargs.spawnGroup
@@ -247,13 +259,24 @@ function Avatar:addObservations(tileSet, world, observations)
   local playerLayerView = world:createView(playerViewConfig)
   local playerLayerViewSpec =
       playerLayerView:observationSpec(stringId .. '.LAYER')
-  playerLayerViewSpec.func = function(grid)
-    return playerLayerView:observation{
+
+  if self._config.fullObservations then
+    playerLayerViewSpec.func = function(grid)
+      return playerLayerView:observation{
+        grid = grid,
+        orientation = 'N'
+      }
+    end
+  else
+    playerLayerViewSpec.func = function(grid)
+      return playerLayerView:observation{
         grid = grid,
         piece = self.gameObject:getPiece(),
         orientation = 'N'
-    }
+      }
+    end
   end
+
   observations[#observations + 1] = playerLayerViewSpec
 
   local playerView = tile.Scene{
@@ -266,11 +289,18 @@ function Avatar:addObservations(tileSet, world, observations)
       type = 'tensor.ByteTensor',
       shape = playerView:shape(),
       func = function(grid)
-        local layer_observation = playerLayerView:observation{
+        if self._config.fullObservations then
+          local layer_observation = playerLayerView:observation{
+            grid = grid,
+          }
+          return playerView:render(layer_observation)
+        else
+          local layer_observation = playerLayerView:observation{
             grid = grid,
             piece = self.gameObject:getPiece(),
-        }
-        return playerView:render(layer_observation)
+          }
+          return playerView:render(layer_observation)
+        end
       end
   }
   observations[#observations + 1] = spec
