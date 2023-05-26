@@ -31,3 +31,6 @@ jobs = 'auto'
 # Use the enum overlay for more precise enum checking. This flag is temporary
 # and will be removed once this behavior is enabled by default.
 use_enum_overlay = true
+
+[tool.mypy]
+mypy_path = /home/richard/.local/lib/python3.10/site-packages/:/home/richard/repo/forks/meltingpot/:/home/richard/miniconda3/envs/meltingpot/lib/python3.9/site-packages/

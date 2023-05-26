@@ -17,16 +17,19 @@
 import argparse
 import copy
 import math
-from typing import Optional
+from typing import List, Optional
 
 import numpy as np
 import pandas as pd
 import ray
 from ray import tune
 from ray.rllib.algorithms import AlgorithmConfig
-from ray.rllib.algorithms.ppo import PPOConfig
-from ray.rllib.policy.policy import PolicySpec
+from ray.rllib.algorithms.callbacks import DefaultCallbacks
+from ray.rllib.algorithms.ppo import PPO, PPOConfig
+from ray.rllib.policy.policy import Policy, PolicySpec
+from ray.rllib.policy.sample_batch import DEFAULT_POLICY_ID
 from ray.tune.registry import register_env
+
 
 from examples.rllib import utils
 from reward_transfer.common import create_env_config, CUSTOM_MODEL, LOGGING_LEVEL, VERBOSE
@@ -44,11 +47,10 @@ NUM_WORKERS = 0
 NUM_ENVS_PER_WORKER = 8
 NUM_EPISODES_PER_WORKER = 1
 
-N_SAMPLES = 2
-EVAL_DURATION = 8
-EVAL_INTERVAL = 20
-KEEP_CHECKPOINTS_NUM = 3
-CHECKPOINT_FREQ = 20
+N_SAMPLES = 20
+EVAL_DURATION = 80
+KEEP_CHECKPOINTS_NUM = 3  # Default None
+CHECKPOINT_FREQ = 20  # Default 0
 
 NUM_GPUS = 0
 SGD_MINIBATCH_SIZE = 4096  # should this be reduced if no GPU?
@@ -74,12 +76,12 @@ def main():
       "--selfp_episodes",
       type=int,
       default=0,
-      help="initial training is against copies of self")
+      help="number of initial self play pre-training episodes")
   parser.add_argument(
       "--independent_episodes",
       type=int,
-      default=0,
-      help="initial training is against copies of self")
+      default=4000,
+      help="number of training episodes")
   parser.add_argument(
       "--regrowth_probability",
       type=float,
@@ -101,8 +103,8 @@ def main():
 
   args = parser.parse_args()
 
-  ks = np.round(np.arange(0.0, 1.01, 1.1), 2) if args.gifting else np.round(
-      np.arange(0.0, 0.51, 1.05), 2)
+  ks = np.round(np.arange(0.0, 1.01, 0.1), 2) if args.gifting else np.round(
+      np.arange(0.0, 0.51, 0.05), 2)
 
   ray.init(
       address="local",
@@ -117,11 +119,11 @@ def main():
                                       make_2p_rs(0))
 
   # Extract space dimensions
-  num_policies = env_eval_config.num_players if args.independent_episodes else 1
+  num_policies = env_eval_config.num_players
   test_env = utils.env_creator(env_eval_config)
 
   POLICIES = dict((
-      f"player_{i}",
+      utils.PLAYER_STR_FORMAT.format(index=i),
       PolicySpec(
           policy_class=None,  # use default policy
           observation_space=test_env.observation_space[f"player_{i}"],
@@ -138,10 +140,7 @@ def main():
       len(ks) * N_SAMPLES, math.floor(args.num_cpus / (1 + NUM_WORKERS)))
   num_gpus_per_algo = NUM_GPUS / max_concurrent_algos
 
-  # train first, eval later
-
-  # to use, copy and specify the env and policy_mapping_fn
-  train_config = PPOConfig().training(
+  config = PPOConfig().training(
       model=CUSTOM_MODEL,
       lr=LR,
       train_batch_size=train_batch_size,
@@ -160,51 +159,40 @@ def main():
       num_rollout_workers=NUM_WORKERS,
       rollout_fragment_length=100,
       num_envs_per_worker=NUM_ENVS_PER_WORKER,
+  ).fault_tolerance(
       recreate_failed_workers=True,
       num_consecutive_worker_failures_tolerance=3,
   ).environment(
-      env="meltingpot").multi_agent(
-          policies=POLICIES,).debugging(log_level=LOGGING_LEVEL).resources(
-              num_gpus=num_gpus_per_algo).framework(
-                  framework="tf",).evaluation(
-                      evaluation_config={
-                          "explore": False,
-                          "env_config": env_eval_config
-                      },
-                      evaluation_interval=EVAL_INTERVAL,
-                      evaluation_duration=NUM_ENVS_PER_WORKER).reporting(
-                          metrics_num_episodes_for_smoothing=1)
-
-  # setup the evaluation for the 2p independent agents final training
-  # will not use gpus as inference only
-  eval_config = copy.deepcopy(train_config)
-  # don't use evaluation_num_workers
-  eval_config = eval_config.resources(num_gpus=0).evaluation(
+    env="meltingpot",
+    env_config=env_eval_config,
+  ).debugging(log_level=LOGGING_LEVEL,
+  ).resources(num_gpus=num_gpus_per_algo,
+  ).framework(framework="tf",
+  ).reporting(metrics_num_episodes_for_smoothing=1,
+  ).evaluation(
+      evaluation_interval=None,  # don't evaluate unless we call evaluation()
       evaluation_config={
-          "explore": EXPLORE_EVAL
+          "explore": EXPLORE_EVAL,
+          "env_config": env_eval_config,
       },
       evaluation_duration=EVAL_DURATION,
-  ).environment(env_config=env_eval_config)
+  )
 
-  stop_epoch = 0
 
   if args.selfp_episodes:
-    # to start with, player_0 and player_1 are separately trained for 1 sample,
-    # only check-pointing at the end. They then continue training for N samples
-    # with each other.
-
-    restores = [None] * N_SAMPLES
     num_epochs = math.ceil(args.selfp_episodes /
                            (max(1, NUM_WORKERS) * NUM_ENVS_PER_WORKER))
 
     @ray.remote
-    def run_selfp(k: float, restore: Optional[str], stop_epoch: int,
-                  num_epochs: int, config: AlgorithmConfig, trial_id: int):
+    def run_selfp(k: float, num_epochs: int, config: AlgorithmConfig,
+                  trial_id: int):
       name = f"{ALGO}_selfp_{k}_{trial_id}"
+      checkpoints = []
 
-      for player in POLICIES.keys():
+      for player, spec in POLICIES.items():
         config = config.multi_agent(
-            policy_mapping_fn=lambda aid, episode, worker, **kwargs: player)
+          policies={player: spec},
+          policy_mapping_fn=lambda aid, episode, worker, **kwargs: player)
 
         if args.gifting and player == "player_1":
           config = config.environment(
@@ -215,102 +203,110 @@ def main():
               env_config=create_env_config(2, args.regrowth_probability,
                                            make_2p_rs(k)))
 
-        stop_epoch += num_epochs
-        stop = {"training_iteration": stop_epoch}
-
         trial = tune.run(
             ALGO,
-            stop=stop,
+            stop={"training_iteration": num_epochs},
             checkpoint_at_end=True,
             config=config,
             metric="episode_reward_mean",
             mode="max",
             log_to_file=False,
             local_dir=args.local_dir,
-            restore=restore,
             name=name,
             verbose=VERBOSE,
         ).trials[-1]
 
-        restore = trial.checkpoint.dir_or_data
+        checkpoints += [trial.checkpoint.dir_or_data]
 
-      return trial
+      return checkpoints
 
-    trials = ray.get([
-        run_selfp.remote(ks[i], restores[j], stop_epoch, num_epochs,
-                         copy.deepcopy(train_config), j)
-        for i in range(len(ks))
-        for j in range(N_SAMPLES)
+    checkpoints = ray.get([
+        run_selfp.remote(ks[i], num_epochs, copy.deepcopy(config), j)
+        for i in range(len(ks)) for j in range(N_SAMPLES)
     ])
 
-    restores = [trial.checkpoint.dir_or_data for trial in trials]
-
-    stop_epoch += num_epochs * len(POLICIES)
   else:
-    restores = [None] * N_SAMPLES * len(ks)
+    checkpoints = [None] * N_SAMPLES * len(ks)
 
-  if args.independent_episodes:
-    # train independent agents
-    @ray.remote
-    def run_indep(k: float, restore: Optional[str], start_epoch: int,
-                  stop_epoch: int, config: AlgorithmConfig, trial_id: int):
-      name = f"{ALGO}_indep_{k}_{trial_id}"
+  # train independent agents
+  @ray.remote
+  def run_indep(k: float, checkpoints: Optional[List[str]], num_epochs: int,
+                config: AlgorithmConfig, trial_id: int):
+    name = f"{ALGO}_indep_{k}_{trial_id}"
 
+    if args.gifting:
+      config = config.environment(
+          env_config=create_env_config(2, args.regrowth_probability,
+                                       make_2p_rs(k_0=k, k_1=0)))
+    else:
+      config = config.environment(
+          env_config=create_env_config(2, args.regrowth_probability,
+                                       make_2p_rs(k)))
+
+    if checkpoints is not None:
+      class MyCallbacks(DefaultCallbacks):
+        def __init__(self):
+          super().__init__()
+          self.checkpoints = checkpoints
+          self.policy_mapping_fn = lambda aid, episode, worker, **kwargs: aid
+
+        def on_algorithm_init(
+            self,
+            *,
+            algorithm: "Algorithm",
+            **kwargs,
+        ) -> None:
+          for checkpoint in self.checkpoints:
+            policy = Policy.from_checkpoint(checkpoint)
+            for p_id, p in policy.items():
+              algorithm.add_policy(p_id, policy=p)
+
+          algorithm.remove_policy(DEFAULT_POLICY_ID,
+                                  policy_mapping_fn=self.policy_mapping_fn,
+                                  policies_to_train=list(POLICIES.keys()))
+
+      config = config.callbacks(MyCallbacks)
+    else:
       config = config.multi_agent(
+          policies=POLICIES,
           policy_mapping_fn=lambda aid, episode, worker, **kwargs: aid)
 
-      if args.gifting:
-        config = config.environment(
-            env_config=create_env_config(2, args.regrowth_probability,
-                                         make_2p_rs(k_0=k, k_1=0)))
-      else:
-        config = config.environment(
-            env_config=create_env_config(2, args.regrowth_probability,
-                                         make_2p_rs(k)))
+    return tune.run(
+        ALGO,
+        stop={"training_iteration": num_epochs},
+        keep_checkpoints_num=KEEP_CHECKPOINTS_NUM,
+        checkpoint_freq=CHECKPOINT_FREQ,
+        checkpoint_at_end=True,
+        config=config,
+        metric="episode_reward_mean",
+        mode="max",
+        log_to_file=False,
+        local_dir=args.local_dir,
+        name=name,
+        verbose=VERBOSE,
+    ).trials[-1]
 
-      stop = {"training_iteration": stop_epoch}
+  num_epochs = math.ceil(args.independent_episodes /
+                         (max(1, NUM_WORKERS) * NUM_ENVS_PER_WORKER))
 
-      return tune.run(
-          ALGO,
-          stop=stop,
-          keep_checkpoints_num=KEEP_CHECKPOINTS_NUM,
-          checkpoint_freq=CHECKPOINT_FREQ,
-          checkpoint_at_end=True,
-          config=config,
-          metric="episode_reward_mean",
-          mode="max",
-          log_to_file=False,
-          local_dir=args.local_dir,
-          restore=restore,
-          name=name,
-          verbose=VERBOSE,
-      ).trials[-1]
-
-    num_episodes = math.ceil(args.independent_episodes /
-                             (max(1, NUM_WORKERS) * NUM_ENVS_PER_WORKER))
-
-    trials = ray.get([
-        run_indep.remote(ks[i], restores[i * N_SAMPLES + j],
-                          stop_epoch, stop_epoch + num_episodes,
-                          copy.deepcopy(train_config), j)
-        for i in range(len(ks))
-        for j in range(N_SAMPLES)
-    ])
+  trials = ray.get([
+      run_indep.remote(ks[i], checkpoints[i * N_SAMPLES + j],
+                       num_epochs, copy.deepcopy(config), j)
+      for i in range(len(ks)) for j in range(N_SAMPLES)
+  ])
 
   if args.evaluate:
+    # # TODO: necessary? was only a copy that was edited
+    # # cleanup callbacks if used
+    # config = config.callbacks(DefaultCallbacks)
+
     @ray.remote
-    def run_evaluate(eval_config, checkpoint_path):
-      trainer = eval_config.build()
-      trainer.restore(checkpoint_path)
-      return trainer.evaluate()["evaluation"]
+    def run_evaluate(checkpoint):
+      algo = config.build()
+      algo.load_checkpoint(checkpoint)
+      return algo.evaluate()["evaluation"]
 
     # evaluate agents
-    if num_policies > 1:
-      eval_config = eval_config.multi_agent(
-          policy_mapping_fn=lambda aid, episode, worker, **kwargs: aid)
-    else:
-      eval_config = eval_config.multi_agent(
-          policy_mapping_fn=lambda aid, episode, worker, **kwargs: "player_0")
     results = {}
     names = []
     checkpoints = []
@@ -322,7 +318,7 @@ def main():
         checkpoints.append(checkpoint.dir_or_data)
 
     results = ray.get(
-        [run_evaluate.remote(eval_config, c) for c in checkpoints])
+        [run_evaluate.remote(c) for c in checkpoints])
     results_dict = dict(((n, r) for n, r in zip(names, results)))
 
     identifier = "stoch" if EXPLORE_EVAL else "det"
