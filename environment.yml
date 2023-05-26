@@ -1,4 +1,4 @@
-name: meltingpot
+name: meltingpot_2.4
 channels:
   - conda-forge
 dependencies:
@@ -6,6 +6,7 @@ dependencies:
 
   # framework
   - tensorflow==2.9.1
+  - tensorflow-probability==0.17.0
 
   # meltingpot deps
   - absl-py==1.4.0
@@ -26,10 +27,10 @@ dependencies:
 
   # reward_transfer deps
   - pandas==2.0.1
-  - ray-rllib==2.0.1
+  - ray-rllib==2.4.0
 
-  # # optionals
-  # - jupyterlab
+  # optionals
+  - jupyterlab
 
   - pip==23.1.2
   - pip:

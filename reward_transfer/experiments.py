@@ -44,8 +44,8 @@ NUM_WORKERS = 0
 NUM_ENVS_PER_WORKER = 8
 NUM_EPISODES_PER_WORKER = 1
 
-N_SAMPLES = 20
-EVAL_DURATION = 80
+N_SAMPLES = 2
+EVAL_DURATION = 8
 EVAL_INTERVAL = 20
 KEEP_CHECKPOINTS_NUM = 3
 CHECKPOINT_FREQ = 20
@@ -101,8 +101,8 @@ def main():
 
   args = parser.parse_args()
 
-  ks = np.round(np.arange(0.0, 1.01, 0.1), 2) if args.gifting else np.round(
-      np.arange(0.0, 0.51, 0.05), 2)
+  ks = np.round(np.arange(0.0, 1.01, 1.1), 2) if args.gifting else np.round(
+      np.arange(0.0, 0.51, 1.05), 2)
 
   ray.init(
       address="local",
@@ -163,7 +163,7 @@ def main():
       recreate_failed_workers=True,
       num_consecutive_worker_failures_tolerance=3,
   ).environment(
-      env="meltingpot", disable_env_checking=True).multi_agent(
+      env="meltingpot").multi_agent(
           policies=POLICIES,).debugging(log_level=LOGGING_LEVEL).resources(
               num_gpus=num_gpus_per_algo).framework(
                   framework="tf",).evaluation(
@@ -222,7 +222,7 @@ def main():
             ALGO,
             stop=stop,
             checkpoint_at_end=True,
-            config=config.to_dict(),
+            config=config,
             metric="episode_reward_mean",
             mode="max",
             log_to_file=False,
@@ -276,7 +276,7 @@ def main():
           keep_checkpoints_num=KEEP_CHECKPOINTS_NUM,
           checkpoint_freq=CHECKPOINT_FREQ,
           checkpoint_at_end=True,
-          config=config.to_dict(),
+          config=config,
           metric="episode_reward_mean",
           mode="max",
           log_to_file=False,

@@ -114,24 +114,27 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
       *,
       seed: Optional[int] = None,
       options: Optional[dict] = None,
-  ) -> MultiAgentDict:
+  ) -> Tuple[MultiAgentDict, MultiAgentDict]:
     """See base class."""
     timestep = self._env.reset()
     obs = utils.timestep_to_observations(timestep, self._individual_obs)
-    return obs
+    infos = {}
+    return obs, infos
 
   def step(
       self, action_dict
-  ) -> Tuple[MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict]:
+  ) -> Tuple[MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict,
+             MultiAgentDict]:
     """See base class."""
     actions = [action_dict[agent_id] for agent_id in self._ordered_agent_ids]
     timestep = self._env.step(actions)
     rewards = self._reward_transfer_fn(timestep.reward)
-    done = {"__all__": timestep.last()}
+    # gymnasium split done into terminated and truncated
+    terminated = {"__all__": timestep.last()}
+    truncated = {"__all__": False}
     infos = {}
-
     obs = utils.timestep_to_observations(timestep, self._individual_obs)
-    return obs, rewards, done, infos
+    return obs, rewards, terminated, truncated, infos
 
   def close(self):
     """See base class."""
@@ -141,9 +144,9 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
     """Return the underlying DM Lab2D environment."""
     return self._env
 
-  # Metadata is required by the gym `Env` class that we are extending, to show
-  # which modes the `render` method supports.
-  metadata = {"render.modes": ["rgb_array"]}
+  # Metadata is required by the gymnasium `Env` class that we are extending, to
+  # show which modes the `render` method supports.
+  metadata = {'render.modes': ['rgb_array']}
 
   def render(self) -> np.ndarray:
     """Render the environment.

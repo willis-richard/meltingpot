@@ -44,16 +44,16 @@ def remove_world_observations_from_space(
 
 
 def spec_to_space(spec: tree.Structure[dm_env.specs.Array]) -> spaces.Space:
-  """Converts a dm_env nested structure of specs to a Gym Space.
+  """Converts a dm_env nested structure of specs to a Gymnasium Space.
 
-  BoundedArray is converted to Box Gym spaces. DiscreteArray is converted to
-  Discrete Gym spaces. Using Tuple and Dict spaces recursively as needed.
+  BoundedArray is converted to Box Gymnasium spaces. DiscreteArray is converted to
+  Discrete Gymnasium spaces. Using Tuple and Dict spaces recursively as needed.
 
   Args:
     spec: The nested structure of specs
 
   Returns:
-    The Gym space corresponding to the given spec.
+    The Gymnasium space corresponding to the given spec.
   """
   if isinstance(spec, dm_env.specs.DiscreteArray):
     return spaces.Discrete(spec.num_values)
