@@ -1,7 +1,8 @@
 """Defines some helper constants and functions."""
 from typing import List, Optional
 
-from meltingpot.python.configs.substrates.commons_harvest__simple import get_config
+from meltingpot.python.configs.substrates.commons_harvest__simple import get_config as get_config_harvest
+from meltingpot.python.configs.substrates.coins import get_config as get_config_coins
 
 LOGGING_LEVEL = "WARN"
 VERBOSE = 1
@@ -24,23 +25,40 @@ CUSTOM_MODEL = {
     "lstm_use_prev_reward": False,
 }
 
-def create_env_config(num_players: int,
-                      regrowth_probability: float = 0.15,
-                      reward_transfer: Optional[List[List]] = None):
+DEFAULT_MODEL = {
+    "conv_filters": [[16, [8, 8], 8], [128, [11, 11], 1]],
+    "fcnet_hiddens": [64, 64],
+    "fcnet_activation": "relu",
+    "conv_activation": "relu",
+    "post_fcnet_hiddens": [256,],
+    "post_fcnet_activation": "relu",
+    "use_lstm": True,
+    "lstm_use_prev_action": True,
+    "lstm_use_prev_reward": False,
+    "lstm_cell_size": 256,
+}
+
+def create_env_config_harvest(reward_transfer: List[List],
+                              regrowth_probability: float = 0.15):
   """Create the commons_harvest__simple config."""
-  config = get_config(
-      num_players=num_players,
+  config = get_config_harvest(
       regrowth_probabilities=[0, regrowth_probability])
 
   config["substrate"] = "commons_harvest__simple"
   config["roles"] = config.default_player_roles
 
-  if num_players == 1:
-    config["reward_transfer"] = [[1]]
-  elif num_players == 2:
-    assert reward_transfer is not None, "must provide reward_transfer"
-    config["reward_transfer"] = reward_transfer
-  else:
-    assert False, "num_player must be 1 or 2"
+  config["reward_transfer"] = reward_transfer
+  config.lock()
+  return config
+
+
+def create_env_config_coins(reward_transfer: List[List]):
+  """Create the commons_harvest__simple config."""
+  config = get_config_coins()
+
+  config["substrate"] = "commons_harvest__simple"
+  config["roles"] = config.default_player_roles
+
+  config["reward_transfer"] = reward_transfer
   config.lock()
   return config

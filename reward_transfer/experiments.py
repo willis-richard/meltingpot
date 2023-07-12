@@ -32,7 +32,7 @@ from ray.tune.registry import register_env
 
 
 from examples.rllib import utils
-from reward_transfer.common import create_env_config, CUSTOM_MODEL, LOGGING_LEVEL, VERBOSE
+from reward_transfer.common import create_env_config_coins, CUSTOM_MODEL, DEFAULT_MODEL, LOGGING_LEVEL, VERBOSE
 
 
 def make_2p_rs(k_0: float, k_1: Optional[float] = None):
@@ -47,13 +47,13 @@ NUM_WORKERS = 0
 NUM_ENVS_PER_WORKER = 8
 NUM_EPISODES_PER_WORKER = 1
 
-N_SAMPLES = 20
+N_SAMPLES = 5
 EVAL_DURATION = 80
-KEEP_CHECKPOINTS_NUM = 3  # Default None
-CHECKPOINT_FREQ = 20  # Default 0
+KEEP_CHECKPOINTS_NUM = None  # Default None
+CHECKPOINT_FREQ = 0  # Default 0
 
 NUM_GPUS = 0
-SGD_MINIBATCH_SIZE = 4096  # should this be reduced if no GPU?
+SGD_MINIBATCH_SIZE = 4096  # 256 = minimum for efficient CPU training
 LR = 2e-4
 VF_CLIP_PARAM = 2.0
 NUM_SGD_ITER = 10
@@ -115,20 +115,28 @@ def main():
 
   register_env("meltingpot", utils.env_creator)
 
-  env_eval_config = create_env_config(2, args.regrowth_probability,
-                                      make_2p_rs(0))
+  env_eval_config = create_env_config_coins(make_2p_rs(0))
 
   # Extract space dimensions
-  num_policies = env_eval_config.num_players
+  player_roles= env_eval_config.default_player_roles
   test_env = utils.env_creator(env_eval_config)
 
-  POLICIES = dict((
-      utils.PLAYER_STR_FORMAT.format(index=i),
-      PolicySpec(
-          policy_class=None,  # use default policy
-          observation_space=test_env.observation_space[f"player_{i}"],
-          action_space=test_env.action_space[f"player_{i}"],
-          config={})) for i in range(num_policies))
+  POLICIES = {}
+  for i in range(len(player_roles)):
+    rgb_shape = test_env.observation_space[f"player_{i}"]["RGB"].shape
+    sprite_x = rgb_shape[0] // 8
+    sprite_y = rgb_shape[1] // 8
+
+    POLICIES[f"player_{i}"] = PolicySpec(
+        policy_class=None,  # use default policy
+        observation_space=test_env.observation_space[f"player_{i}"],
+        action_space=test_env.action_space[f"player_{i}"],
+        config={
+            # "model": {
+            #     "conv_filters": [[16, [8, 8], 8],
+            #                      [128, [sprite_x, sprite_y], 1]],
+            # },
+        })
 
   # No longer in the config (was lab2d_settings)
   # horizon = env_eval_config.substrate_definition["maxEpisodeLengthFrames"]
@@ -141,7 +149,7 @@ def main():
   num_gpus_per_algo = NUM_GPUS / max_concurrent_algos
 
   config = PPOConfig().training(
-      model=CUSTOM_MODEL,
+      model=DEFAULT_MODEL,
       lr=LR,
       train_batch_size=train_batch_size,
       lambda_=0.80,
@@ -196,12 +204,10 @@ def main():
 
         if args.gifting and player == "player_1":
           config = config.environment(
-              env_config=create_env_config(2, args.regrowth_probability,
-                                           make_2p_rs(0)))
+              env_config=create_env_config_coins(make_2p_rs(0)))
         else:
           config = config.environment(
-              env_config=create_env_config(2, args.regrowth_probability,
-                                           make_2p_rs(k)))
+              env_config=create_env_config_coins(make_2p_rs(k)))
 
         trial = tune.run(
             ALGO,
@@ -236,12 +242,10 @@ def main():
 
     if args.gifting:
       config = config.environment(
-          env_config=create_env_config(2, args.regrowth_probability,
-                                       make_2p_rs(k_0=k, k_1=0)))
+          env_config=create_env_config_coins(make_2p_rs(k_0=k, k_1=0)))
     else:
       config = config.environment(
-          env_config=create_env_config(2, args.regrowth_probability,
-                                       make_2p_rs(k)))
+          env_config=create_env_config_coins(make_2p_rs(k)))
 
     if checkpoints is not None:
       class MyCallbacks(DefaultCallbacks):

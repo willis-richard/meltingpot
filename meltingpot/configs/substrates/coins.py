@@ -24,6 +24,7 @@ from meltingpot.utils.substrates import colors
 from meltingpot.utils.substrates import game_object_utils
 from meltingpot.utils.substrates import shapes
 from meltingpot.utils.substrates import specs
+from meltingpot.utils.substrates import _validated
 from ml_collections import config_dict as configdict
 
 PrefabConfig = game_object_utils.PrefabConfig
@@ -117,14 +118,14 @@ SCENE = {
                 "numPlayers": MANDATED_NUM_PLAYERS,
             },
         },
-        {
-            "component": "StochasticIntervalEpisodeEnding",
-            "kwargs": {
-                "minimumFramesPerEpisode": 300,
-                "intervalLength": 100,  # Set equal to unroll length.
-                "probabilityTerminationPerInterval": 0.05
-            }
-        }
+        # {
+        #     "component": "StochasticIntervalEpisodeEnding",
+        #     "kwargs": {
+        #         "minimumFramesPerEpisode": 300,
+        #         "intervalLength": 100,  # Set equal to unroll length.
+        #         "probabilityTerminationPerInterval": 0.05
+        #     }
+        # }
     ]
 }
 if _ENABLE_DEBUG_OBSERVATIONS:
@@ -486,6 +487,7 @@ def get_config():
   # The roles assigned to each player.
   config.valid_roles = frozenset({"default"})
   config.default_player_roles = ("default",) * MANDATED_NUM_PLAYERS
+  config.lab2d_settings_builder = _validated(build)
 
   return config
 
@@ -514,7 +516,7 @@ def build(
       levelDirectory="meltingpot/lua/levels",
       numPlayers=num_players,
       # Define upper bound of episode length since episodes end stochastically.
-      maxEpisodeLengthFrames=5000,
+      maxEpisodeLengthFrames=500,
       spriteSize=8,
       topology="BOUNDED",  # Choose from ["BOUNDED", "TORUS"],
       simulation={
