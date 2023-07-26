@@ -32,16 +32,20 @@ def get_human_action():
   for event in pygame.event.get():
     if event.type == pygame.KEYDOWN:
       key_pressed = pygame.key.get_pressed()
-      if key_pressed[pygame.K_UP]:
-        a = 1
-      if key_pressed[pygame.K_RIGHT]:
-        a = 2
-      if key_pressed[pygame.K_DOWN]:
-        a = 3
-      if key_pressed[pygame.K_LEFT]:
-        a = 4
       if key_pressed[pygame.K_SPACE]:
         a = 0
+      if key_pressed[pygame.K_UP]:
+        a = 1
+      if key_pressed[pygame.K_DOWN]:
+        a = 2
+      if key_pressed[pygame.K_LEFT]:
+        a = 3
+      if key_pressed[pygame.K_RIGHT]:
+        a = 4
+      if key_pressed[pygame.K_z]:
+        a = 5
+      if key_pressed[pygame.K_x]:
+        a = 6
       break  # removing this did not solve the bug
   return a
 
@@ -114,14 +118,13 @@ def main():
   # Create a new environment to visualise
   env = utils.env_creator(config["env_config"]).get_dmlab2d_env()
 
-  num_bots = config["env_config"]["num_players"]
-  if args.human:
-    num_bots = num_bots - 1
+  num_players = len(config["env_config"]["default_player_roles"])
   bots = [
       utils.RayModelPolicy(
         trainer,
         config["env_config"]["individual_observation_names"],
-        f"player_{i}") for i in range(num_bots)
+        f"player_{i}") for i in range(
+          num_players - 1 if args.human else num_players)
   ]
 
   timestep = env.reset()
@@ -134,14 +137,14 @@ def main():
 
   # Configure the pygame display
   pygame.init()
-  scale = 40
+  scale = 1000 // max(int(shape[0]), int(shape[1]))
   fps = 8
   game_display = pygame.display.set_mode(
       (int(shape[1] * scale), int(shape[0] * scale)))
   clock = pygame.time.Clock()
   pygame.display.set_caption("DM Lab2d")
 
-  total_rewards = np.zeros(config["env_config"]["num_players"])
+  total_rewards = np.zeros(num_players)
 
   for _ in range(500):
     obs = timestep.observation[0]["WORLD.RGB"]

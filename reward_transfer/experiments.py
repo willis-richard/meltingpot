@@ -118,7 +118,7 @@ def main():
   env_eval_config = create_env_config_coins(make_2p_rs(0))
 
   # Extract space dimensions
-  player_roles= env_eval_config.default_player_roles
+  player_roles = env_eval_config.default_player_roles
   test_env = utils.env_creator(env_eval_config)
 
   POLICIES = {}
