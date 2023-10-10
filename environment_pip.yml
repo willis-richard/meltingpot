@@ -1,23 +1,23 @@
-name: meltingpot
+name: meltingpot_pip
 channels:
   - conda-forge
 dependencies:
-  - python>=3.10.8
+  - python>=3.10
 
   # framework
-  - tensorflow>=2.10.0
-  - tensorflow-probability>=0.19.0
+  - tensorflow>=2.11.1
+  - tensorflow-probability
 
   # meltingpot deps
-  - absl-py>=2.0.0
-  - chex>=0.1.81
-  - dm-env>=1.6
-  - immutabledict>=3.0.0
-  - ml-collections>=0.1.1
-  - networkx>=3.1
-  - numpy>=1.26.0
-  - pygame>=2.2.0
-  - reactivex>=4.0.4
+  - absl-py
+  - chex
+  - dm-env
+  - immutabledict
+  - ml-collections
+  - networkx
+  - numpy==1.24.3
+  - pygame
+  - reactivex
 
   # chex deps not handled correctly my conda atm
   # compare https://github.com/deepmind/chex/blob/master/requirements/requirements.txt
@@ -26,8 +26,8 @@ dependencies:
   # this is causing conflicts because it requires a later version fo jaxlib
 
   # reward_transfer deps
-  - pandas>=2.1.1
-  - ray-rllib>=2.4.0
+  - pandas
+  - ray-rllib>=2.6.1
 
   # optionals
   - jupyterlab
