@@ -48,9 +48,9 @@ from typing import Any, Dict, List, Mapping, Sequence
 from ml_collections import config_dict
 import numpy as np
 
-from meltingpot.python.configs.substrates import _validated
-from meltingpot.python.utils.substrates import shapes
-from meltingpot.python.utils.substrates import specs
+from meltingpot.configs.substrates import _validated
+from meltingpot.utils.substrates import shapes
+from meltingpot.utils.substrates import specs
 
 # Warning: setting `_ENABLE_DEBUG_OBSERVATIONS = True` may cause slowdown.
 _ENABLE_DEBUG_OBSERVATIONS = False

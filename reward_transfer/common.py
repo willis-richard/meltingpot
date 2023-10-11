@@ -14,6 +14,7 @@ VERBOSE = 1
 CUSTOM_MODEL = {
     "conv_filters": [[16, [3, 3], 1], [32, [3, 3], 1], [64, [5, 5], 1]],
     "conv_activation": "relu",
+    "post_fcnet_activation": "relu",
     "post_fcnet_hiddens": [64, 64],
     "post_fcnet_activation": "relu",
     "no_final_linear": True,

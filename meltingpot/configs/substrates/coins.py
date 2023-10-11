@@ -24,7 +24,7 @@ from meltingpot.utils.substrates import colors
 from meltingpot.utils.substrates import game_object_utils
 from meltingpot.utils.substrates import shapes
 from meltingpot.utils.substrates import specs
-from meltingpot.utils.substrates import _validated
+from meltingpot.configs.substrates import _validated
 from ml_collections import config_dict as configdict
 
 PrefabConfig = game_object_utils.PrefabConfig
