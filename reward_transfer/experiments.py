@@ -44,14 +44,13 @@ NUM_WORKERS = 0
 NUM_ENVS_PER_WORKER = 8
 NUM_EPISODES_PER_WORKER = 1
 
-N_SAMPLES = 20
 EVAL_DURATION = 80
 EVAL_INTERVAL = 20
 KEEP_CHECKPOINTS_NUM = 3
 CHECKPOINT_FREQ = 20
 
 NUM_GPUS = 0
-SGD_MINIBATCH_SIZE = 4096  # should this be reduced if no GPU?
+SGD_MINIBATCH_SIZE = 4096
 LR = 2e-4
 VF_CLIP_PARAM = 2.0
 NUM_SGD_ITER = 10
@@ -80,6 +79,11 @@ def main():
       type=int,
       default=0,
       help="initial training is against copies of self")
+  parser.add_argument(
+      "--num_samples",
+      type=int,
+      default=20,
+      help="Number of seeds to run for each value of e or g")
   parser.add_argument(
       "--regrowth_probability",
       type=float,
@@ -128,17 +132,13 @@ def main():
           action_space=test_env.action_space[f"player_{i}"],
           config={})) for i in range(num_policies))
 
-  # No longer in the config (was lab2d_settings)
-  # horizon = env_eval_config.substrate_definition["maxEpisodeLengthFrames"]
   horizon = 500
   train_batch_size = max(
       1, NUM_WORKERS) * NUM_ENVS_PER_WORKER * NUM_EPISODES_PER_WORKER * horizon
 
   max_concurrent_algos = min(
-      len(ks) * N_SAMPLES, math.floor(args.num_cpus / (1 + NUM_WORKERS)))
+      len(ks) * args.num_samples, math.floor(args.num_cpus / (1 + NUM_WORKERS)))
   num_gpus_per_algo = NUM_GPUS / max_concurrent_algos
-
-  # train first, eval later
 
   # to use, copy and specify the env and policy_mapping_fn
   train_config = PPOConfig().training(
@@ -152,9 +152,6 @@ def main():
       vf_clip_param=VF_CLIP_PARAM,
       sgd_minibatch_size=min(SGD_MINIBATCH_SIZE, train_batch_size),
       num_sgd_iter=NUM_SGD_ITER,
-
-      # grad_clip=40, # THIS
-      # # microbatch_size=min(SGD_MINIBATCH_SIZE, train_batch_size),
   ).rollouts(
       batch_mode="complete_episodes",
       num_rollout_workers=NUM_WORKERS,
@@ -188,12 +185,10 @@ def main():
 
   stop_epoch = 0
 
-  if args.selfp_episodes:
-    # to start with, player_0 and player_1 are separately trained for 1 sample,
-    # only check-pointing at the end. They then continue training for N samples
-    # with each other.
 
-    restores = [None] * N_SAMPLES
+  if args.selfp_episodes:
+    # train both players separately
+    restores = [None] * args.num_samples
     num_epochs = math.ceil(args.selfp_episodes /
                            (max(1, NUM_WORKERS) * NUM_ENVS_PER_WORKER))
 
@@ -240,17 +235,17 @@ def main():
         run_selfp.remote(ks[i], restores[j], stop_epoch, num_epochs,
                          copy.deepcopy(train_config), j)
         for i in range(len(ks))
-        for j in range(N_SAMPLES)
+        for j in range(args.num_samples)
     ])
 
     restores = [trial.checkpoint.dir_or_data for trial in trials]
 
     stop_epoch += num_epochs * len(POLICIES)
   else:
-    restores = [None] * N_SAMPLES * len(ks)
+    restores = [None] * args.num_samples * len(ks)
 
   if args.independent_episodes:
-    # train independent agents
+    # train independent agents together
     @ray.remote
     def run_indep(k: float, restore: Optional[str], start_epoch: int,
                   stop_epoch: int, config: AlgorithmConfig, trial_id: int):
@@ -290,11 +285,11 @@ def main():
                              (max(1, NUM_WORKERS) * NUM_ENVS_PER_WORKER))
 
     trials = ray.get([
-        run_indep.remote(ks[i], restores[i * N_SAMPLES + j],
+        run_indep.remote(ks[i], restores[i * args.num_samples + j],
                           stop_epoch, stop_epoch + num_episodes,
                           copy.deepcopy(train_config), j)
         for i in range(len(ks))
-        for j in range(N_SAMPLES)
+        for j in range(args.num_samples)
     ])
 
   if args.evaluate:
@@ -315,10 +310,10 @@ def main():
     names = []
     checkpoints = []
     for i, trial in enumerate(trials):
-      k = ks[math.floor(i / N_SAMPLES)]
+      k = ks[math.floor(i / args.num_samples)]
       for j, checkpoint in enumerate(trial.get_trial_checkpoints()):
         # k, trial, checkpoint
-        names.append(f"{k}_{i % N_SAMPLES}_{j}")
+        names.append(f"{k}_{i % args.num_samples}_{j}")
         checkpoints.append(checkpoint.dir_or_data)
 
     results = ray.get(

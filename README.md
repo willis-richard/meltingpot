@@ -1,16 +1,24 @@
 # Resolving Social Dilemmas Through Reward Transfer Commitments
 
-This is the code to reproduce the experiments from https://alaworkshop2023.github.io/papers/ALA2023_paper_65.pdf.
+This is the code to reproduce the experiments from https://alaworkshop2023.github.io/papers/ALA2023_paper_65.pdf, which appeared at the Adaptive and Learning Agents Workshop 2023.
+
+A later version appeared at the Safe and Trustworthy AI 2023 workshop https://www.stai.uk/stai-23-iclp.
+
+The game theoretic part of this paper has been expanded and is under review at a journal. A pre-print can be viewed at https://arxiv.org/abs/2310.12928.
 
 ## Installation
 
-Install the dependencies with
-
+Install the dependencies using miniconda
 
 ```shell
 conda create -f environment.yml
+```
+
+Activate the environment and add the repo to the PYTHONPATH
+
+```shell
 conda activate resolving_sd
-bash install-dmlab2d.sh
+export PYTHONPATH=$(pwd)
 ```
 
 ## Experiments
@@ -18,15 +26,42 @@ bash install-dmlab2d.sh
 To run the reward gifting experiments
 
 ```shell
-python3 reward_transfer/experiments.py --num_cpus <YOUR_N_CPUS> --local_dir <PATH_TO_OUTPUTS> --selfp_episodes 2000 --independent_episodes 4000 --regrowth_probability 0.05 --evaluate
-python3 reward_transfer/plots.py --gifting --data_path <PATH_TO_OUTPUTS>/df_indep_det.csv --plot_name <PATH_TO_PLOT_OUTPUT> --regrowth_probability 0.15
+python3 reward_transfer/experiments.py --gifting --num_cpus <YOUR_N_CPUS> --local_dir <PATH_TO_OUTPUTS> --selfp_episodes 0 --independent_episodes 4000 --num_samples 20 --regrowth_probability 0.05 --evaluate
+python3 reward_transfer/plots.py --gifting --data_path <PATH_TO_OUTPUTS>/df_indep_det.csv --plot_name <PATH_TO_PLOT_OUTPUT> --regrowth_probability 0.05
 ```
 
 To run the reward exchange experiments
 
 ```shell
-python3 reward_transfer/experiments.py --num_cpus <YOUR_N_CPUS> --local_dir <PATH_TO_OUTPUTS> --selfp_episodes 2000 --independent_episodes 4000 --regrowth_probability 0.05 --evaluate
-python3 reward_transfer/plots.py --data_path <PATH_TO_OUTPUTS>/df_indep_det.csv --plot_name <PATH_TO_PLOT_OUTPUT> --regrowth_probability 0.15
+python3 reward_transfer/experiments.py --num_cpus <YOUR_N_CPUS> --local_dir <PATH_TO_OUTPUTS> --selfp_episodes 2000 --independent_episodes 4000 --num_samples 20 --regrowth_probability 0.05 --evaluate
+python3 reward_transfer/plots.py --data_path <PATH_TO_OUTPUTS>/df_indep_det.csv --plot_name <PATH_TO_PLOT_OUTPUT> --regrowth_probability 0.05
+```
+
+To view the trained policies
+
+```shell
+python3 examples/rllib/view_models.py --experiment_state <PATH_TO_AN_EXPERIMENT_STATE>
+```
+
+The results presented in the paper were achieved using a machine with a large number of CPUs.
+The neural networks are fairly shallow so there is only a minimal benefit to having a GPU; the results were obtained without using one.
+
+Some hyperparameters can be configured using the command line arguments.
+If you wish to test a different range of reward transfer values, you may wish to update the value of the variable ks in reward_transfer/experiments.py.
+
+It would be recommended to choose a value of `--num_samples` and a range of values of reward transfer values (k) so that `k * num_samples` is not many multiples larger than the number of CPUs available.
+
+For example, to generate rough reward gifting experiments on an 8 core machine, try replacing the values of ks in reward_transfer/experiments.py:108 with the following, which will test `k = (0, 0.25, 0.5, 0.75)`.
+
+```python
+ks = np.round(np.arange(4) / 4, 2)
+```
+
+And using a reduced number of seeds and training episodes
+
+```shell
+python3 reward_transfer/experiments.py --gifting --num_cpus <YOUR_N_CPUS> --local_dir <PATH_TO_OUTPUTS> --selfp_episodes 0 --independent_episodes 1000 --num_samples 2 --regrowth_probability 0.05 --evaluate
+python3 reward_transfer/plots.py --gifting --data_path <PATH_TO_OUTPUTS>/df_indep_det.csv --plot_name <PATH_TO_PLOT_OUTPUT> --regrowth_probability 0.05
 ```
 
 ## Citation
