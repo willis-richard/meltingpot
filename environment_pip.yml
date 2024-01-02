@@ -39,13 +39,12 @@ dependencies:
   - pandas-stubs
   - ptvsd>=4.2
   - pylsp-mypy
-  - python-lsp-server  # though included by pylsp-mypy
+  - python-lsp-server  # included by pylsp-mypy
 
   - pip>=23.1.2
   - pip:
+    - dmlab2d==1.0.0
+
     # dev packages
     - importmagic
     # - pylsp-rope  # leave out for now
-
-  # install dmlab2d with install script
-  # bash install-dmlab2d.sh

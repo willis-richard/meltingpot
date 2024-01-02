@@ -1,11 +1,13 @@
-name: meltingpot
+name: reward_transfer
 channels:
   - conda-forge
 dependencies:
   - python>=3.11.6
 
   # framework
-  - tensorflow>=2.13.1
+  # choose tf version
+  # - tensorflow>=2.13.1
+  - tensorflow-cpu>=2.13.1
   - tensorflow-probability>=0.21.0
 
   # meltingpot deps
@@ -19,15 +21,9 @@ dependencies:
   - pygame>=2.5.2
   - reactivex>=4.0.4
 
-  # chex deps not handled correctly my conda atm
-  # compare https://github.com/deepmind/chex/blob/master/requirements/requirements.txt
-  # to $ conda search chex --channel conda-forge --info
-  # - jax>=0.4.6  # chex requires jax, but has a broken dependency
-  # this is causing conflicts because it requires a later version fo jaxlib
-
   # reward_transfer deps
   - pandas>=2.1.2
-  - ray-rllib>=2.7.1
+  - ray-rllib>=2.8.1
 
   # optionals
   - jupyterlab
@@ -39,10 +35,11 @@ dependencies:
   - pandas-stubs
   - ptvsd>=4.2
   - pylsp-mypy
-  - python-lsp-server  # though included by pylsp-mypy
+  - python-lsp-server  # included by pylsp-mypy
 
   - pip>=23.3.1
   - pip:
+    - dmlab2d==1.0.0
 
     # dev packages
     - importmagic

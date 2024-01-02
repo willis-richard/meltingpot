@@ -78,7 +78,7 @@ def main():
       default=0,
       help="number of initial self play pre-training episodes")
   parser.add_argument(
-      "--independent_episodes",
+      "--indepdndent_episodes",
       type=int,
       default=4000,
       help="number of training episodes")
