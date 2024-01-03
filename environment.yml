@@ -1,0 +1,50 @@
+name: paper_2
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.11.7
+
+  # framework
+  # choose tf version
+  # - tensorflow>=2.13.1
+  - tensorflow-cpu>=2.14.0
+  - tensorflow-probability>=0.22.1
+
+  # meltingpot deps
+  - absl-py>=2.0.0
+  - chex>=0.1.85
+  - dm-env>=1.6
+  - immutabledict>=4.0.0
+  - ml-collections>=0.1.1
+  - networkx>=3.2.1
+  - numpy>=1.26.2
+  - pygame>=2.5.2
+  - reactivex>=4.0.4
+
+  # reward_transfer deps
+  - pandas>=2.1.4
+  - ray-rllib>=2.8.1
+
+  # optionals
+  - jupyterlab>=4.0.10
+  - opencv>=4.8.1  # for competition
+
+  # dev packages
+  - autoflake>=1.7.5
+  - epc>=0.0.5
+  - pandas-stubs
+  - ptvsd>=4.3.2
+
+  # lsp deps
+  - pylsp-mypy>=0.6.8  # currently using anaconda-mode however
+  # included by pylsp-mypy:
+    # - isort
+    # - python-lsp-server
+
+  - pip>=23.3.2
+  - pip:
+    - dmlab2d==1.0.0
+
+    # dev packages
+    - importmagic>=0.1.7
+    # - pylsp-rope  # leave out for now
