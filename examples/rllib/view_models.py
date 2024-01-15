@@ -63,14 +63,12 @@ def main():
       "--trial",
       type=str,
       default=None,
-      help="If provided, use this trial instead of the best trial."
-      " e.g. PPO_meltingpot_ea6f7_00002")
+      help="If provided, use this trial instead of the best trial")
   parser.add_argument(
       "--checkpoint",
       type=str,
       default=None,
-      help="If provided, use this checkpoint instead of the last checkpoint"
-      " e.g. checkpoint_000120")
+      help="If provided, use this checkpoint instead of the last checkpoint")
   parser.add_argument(
       "--human", action="store_true", help="a human controls one of the bots")
 
@@ -94,15 +92,7 @@ def main():
   else:
     trial = experiment.get_best_trial(scope="last")
 
-  if args.checkpoint:
-    checkpoint_path = None
-    for idx, (path,
-              _) in enumerate(experiment.get_trial_checkpoints_paths(trial)):
-      if args.checkpoint in path:
-        checkpoint_path = path
-    assert checkpoint_path is not None
-  else:
-    checkpoint_path = trial.checkpoint.path
+  checkpoint_path = args.checkpoint if args.checkpoint else trial.checkpoint.path
 
   config = trial.config
   # checkpoint_path = experiment.get_trial_checkpoints_paths(best_trial)[-1][0]
@@ -113,7 +103,7 @@ def main():
   config["explore"] = False
 
   trainer = _get_algorithm_class(agent_algorithm)(config=config)
-  trainer.restore(checkpoint_path)
+  trainer.load_checkpoint(checkpoint_path)
 
   # Create a new environment to visualise
   env_config = config["env_config"]

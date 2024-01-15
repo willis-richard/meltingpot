@@ -5,9 +5,15 @@ dependencies:
   - python>=3.11.7
 
   # framework
-  # choose tf version
-  # - tensorflow>=2.13.1
+  ## if gpu:
+  # - cudatoolkit
+  # - cudnn
+  # - tensorflow-gpu==2.14.0  # alias for tensorflow
+  # done
+  ## else:
   - tensorflow-cpu>=2.14.0
+  ## done
+
   - tensorflow-probability>=0.22.1
 
   # meltingpot deps
@@ -23,7 +29,7 @@ dependencies:
 
   # reward_transfer deps
   - pandas>=2.1.4
-  - ray-rllib>=2.8.1
+  - ray-rllib==2.8.1
 
   # optionals
   - jupyterlab>=4.0.10
