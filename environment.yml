@@ -6,10 +6,10 @@ dependencies:
 
   # framework
   ## if gpu:
-  # - cudatoolkit
-  # - cudnn
+  # - cudatoolkit>=11.8  # may want to use the system's version
+  # - cudnn>=8.8.0.121
+  # - gputil>=1.4.0
   # - tensorflow-gpu==2.14.0  # alias for tensorflow
-  # done
   ## else:
   - tensorflow-cpu>=2.14.0
   ## done

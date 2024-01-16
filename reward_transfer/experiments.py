@@ -186,7 +186,8 @@ if __name__ == "__main__":
       num_cpus_for_local_worker=1,
       num_learner_workers=0,
   ).framework(
-      framework="tf",
+      framework="tf2",
+      eager_tracing=True,
   ).reporting(
       metrics_num_episodes_for_smoothing=1,
   ).evaluation(
