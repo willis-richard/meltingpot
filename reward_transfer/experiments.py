@@ -9,6 +9,7 @@ from ray import tune
 from ray.rllib.algorithms.ppo import PPO, PPOConfig
 from ray.rllib.policy.policy import PolicySpec
 from ray.tune.registry import register_env
+from typing import Dict
 
 from examples.rllib import utils
 from meltingpot import substrate
@@ -18,15 +19,11 @@ from reward_transfer.callbacks import MyCallbacks
 # Thus I need to stick a custom parameter in the config and hope I can access this in the callback
 # worry about loading pre-training later
 
-SUBSTRATE_NAME = "coins"
-# SUBSTRATE_NAME = "allelopathic_harvest__open"
-NUM_GPUS = 0
 LOGGING_LEVEL = "WARN"
 VERBOSE = 1
 KEEP_CHECKPOINTS_NUM = 1  # Default None
 CHECKPOINT_FREQ = 10  # Default 0
 
-NUM_WORKERS = 3
 NUM_ENVS_PER_WORKER = 1
 NUM_EPISODES_PER_WORKER = 1
 SGD_MINIBATCH_SIZE = 4096  # 256 = minimum for efficient CPU training
@@ -41,6 +38,11 @@ EVAL_DURATION = 80
 if __name__ == "__main__":
 
   parser = argparse.ArgumentParser(description=__doc__)
+  parser.add_argument(
+      "--substrate",
+      type=str,
+      required=True,
+      help="Which substrate to train on. e.g. 'coins' or 'allelopathic_harvest__open'.")
   parser.add_argument(
       "--n_iterations",
       type=int,
@@ -73,10 +75,10 @@ if __name__ == "__main__":
 
   # TODO: Fix if multiple roles
 
-  substrate_config = substrate.get_config(SUBSTRATE_NAME)
+  substrate_config = substrate.get_config(args.substrate)
   player_roles = substrate_config.default_player_roles
   num_players = len(player_roles)
-  unique_roles = defaultdict(list)
+  unique_roles: Dict[str, list] = defaultdict(list)
   for i, role in enumerate(player_roles):
     unique_roles[role].append(f"player_{i}")
 
@@ -84,7 +86,7 @@ if __name__ == "__main__":
     # 2. call build
   import importlib
 
-  env_module = importlib.import_module(f"meltingpot.configs.substrates.{SUBSTRATE_NAME}")
+  env_module = importlib.import_module(f"meltingpot.configs.substrates.{args.substrate}")
   substrate_definition = env_module.build(player_roles, substrate_config)
   horizon = substrate_definition["maxEpisodeLengthFrames"]
   sprite_size = substrate_definition["spriteSize"]
@@ -97,7 +99,7 @@ if __name__ == "__main__":
 
   # TODO: SPRITE_SIZE
   env_config = ConfigDict({
-      "substrate": SUBSTRATE_NAME,
+      "substrate": args.substrate,
       "substrate_config": substrate_config,
       "roles": player_roles,
       "scaled": 1
@@ -114,14 +116,7 @@ if __name__ == "__main__":
         # policy_class=None,  # use default policy
         observation_space=base_env.observation_space[f"player_{i}"],
         action_space=base_env.action_space[f"player_{i}"],
-        # TODO: FIX to have an actual convolution for spacial purposes
         config={
-        # config={
-        #     "model": {
-        #         "conv_filters": [[16, [8, 8], 8],
-        #                          [128, [sprite_x, sprite_y], 1]],
-        #                          # [128, [11, 11], 1]],
-        #     },
         })
 
   if sprite_size == 8:
@@ -148,9 +143,11 @@ if __name__ == "__main__":
       "lstm_cell_size": 128,
   }
 
+  rollout_workers = args.num_cpus - 1
+
   # TODO: Get maxEpisodeLengthFrames from substrate definition
   train_batch_size = max(
-      1, NUM_WORKERS) * NUM_ENVS_PER_WORKER * NUM_EPISODES_PER_WORKER * horizon
+      1, rollout_workers) * NUM_ENVS_PER_WORKER * NUM_EPISODES_PER_WORKER * horizon
 
   config = PPOConfig().training(
       model=DEFAULT_MODEL,
@@ -165,7 +162,7 @@ if __name__ == "__main__":
       num_sgd_iter=NUM_SGD_ITER,
   ).rollouts(
       batch_mode="complete_episodes",
-      num_rollout_workers=NUM_WORKERS,
+      num_rollout_workers=rollout_workers,
       rollout_fragment_length=100,
       num_envs_per_worker=NUM_ENVS_PER_WORKER,
   ).multi_agent(
@@ -213,7 +210,7 @@ if __name__ == "__main__":
 
   experiment = tune.run(
       run_or_experiment="PPO",
-      name=SUBSTRATE_NAME,
+      name=args.substrate,
       metric="episode_reward_mean",
       mode="max",
       stop={"training_iteration": args.n_iterations},
@@ -226,7 +223,7 @@ if __name__ == "__main__":
     )
 
   # run_config = RunConfig(
-  #     name=SUBSTRATE_NAME,
+  #     name=args.substrate,
   #     local_dir=args.local_dir,
   #     stop={"training_iteration": args.n_iterations},
   #     checkpoint_config=checkpoint_config,
