@@ -10,6 +10,7 @@ from ray.rllib.algorithms.ppo import PPO, PPOConfig
 from ray.rllib.policy.policy import PolicySpec
 from ray.tune.registry import register_env
 from ray.tune.schedulers import ASHAScheduler
+from ray.tune.search.optuna import OptunaSearch
 from typing import Dict
 
 from examples.rllib import utils
@@ -23,7 +24,7 @@ from reward_transfer.callbacks import MyCallbacks
 LOGGING_LEVEL = "WARN"
 VERBOSE = 1
 KEEP_CHECKPOINTS_NUM = 1  # Default None
-CHECKPOINT_FREQ = 10  # Default 0
+CHECKPOINT_FREQ = 50  # Default 0
 
 NUM_ENVS_PER_WORKER = 1
 NUM_EPISODES_PER_WORKER = 1
@@ -151,16 +152,21 @@ if __name__ == "__main__":
 
   config = PPOConfig().training(
       model=DEFAULT_MODEL,
-      # lr=LR,
-      lr=tune.grid_search([LR*16, LR*4, LR, LR / 4, LR / 16]),
       train_batch_size=train_batch_size,
-      lambda_=0.80,
-      vf_loss_coeff=0.5,
-      entropy_coeff=ENTROPY_COEFF,
-      clip_param=0.2,
-      vf_clip_param=VF_CLIP_PARAM,
       sgd_minibatch_size=min(SGD_MINIBATCH_SIZE, train_batch_size),
       num_sgd_iter=NUM_SGD_ITER,
+      # lr=LR,
+      lr=tune.loguniform(1e-5, 5e-4),
+      # lambda_=0.80,
+      lambda_=tune.uniform(0.5, 1),
+      # vf_loss_coeff=0.5,
+      vf_loss_coeff=tune.uniform(0.2, 1),
+      # entropy_coeff=ENTROPY_COEFF,
+      entropy_coeff=tune.loguniform(3e-4, 3e-2),
+      # clip_param=0.2,
+      clip_param=tune.uniform(0.2, 0.4),
+      # vf_clip_param=VF_CLIP_PARAM,
+      vf_clip_param=tune.uniform(1, 20),
   ).rollouts(
       batch_mode="complete_episodes",
       num_rollout_workers=rollout_workers,
@@ -231,28 +237,33 @@ if __name__ == "__main__":
   run_config = RunConfig(
       name=args.substrate,
       local_dir=args.local_dir,
-      # stop={"training_iteration": args.n_iterations},
+      stop={"training_iteration": args.n_iterations},
       checkpoint_config=checkpoint_config,
       verbose=VERBOSE)
 
   asha_scheduler = ASHAScheduler(
       time_attr='training_iteration',
       metric='episode_reward_mean',
-      mode='min',
+      mode='max',
       max_t=args.n_iterations,
-      grace_period=10,
+      grace_period=max(1, args.n_iterations//10),
       reduction_factor=3,
       brackets=1,
   )
 
-  tune_config = tune.TuneConfig(scheduler=asha_scheduler)
+  optuna_search = OptunaSearch(
+      metric='episode_reward_mean',
+      mode='max',
+  )
 
+  tune_config = tune.TuneConfig(num_samples=10, search_alg=optuna_search, scheduler=asha_scheduler)
 
   tuner = tune.Tuner(
       "PPO", param_space=config, tune_config=tune_config, run_config=run_config)
+
   results = tuner.fit()
 
-  # best_result = results.get_best_result(metric="episode_reward_mean", mode="max")
-  # print(best_result)
+  best_result = results.get_best_result(metric="episode_reward_mean", mode="max")
+  print(best_result)
 
   ray.shutdown()

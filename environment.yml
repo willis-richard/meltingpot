@@ -30,6 +30,7 @@ dependencies:
   # reward_transfer deps
   - pandas>=2.1.4
   - ray-rllib==2.8.1
+  - optuna>=3.5.0
 
   # optionals
   - jupyterlab>=4.0.10
