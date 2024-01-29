@@ -101,6 +101,7 @@ def main():
   # TODO: Do I need a serious evaluation during these passes?
 
   config["explore"] = False
+  config["num_rollout_workers"] = 0
 
   trainer = _get_algorithm_class(agent_algorithm)(config=config)
   trainer.load_checkpoint(checkpoint_path)
