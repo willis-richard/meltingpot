@@ -28,7 +28,7 @@ CHECKPOINT_FREQ = 50  # Default 0
 
 NUM_ENVS_PER_WORKER = 1
 NUM_EPISODES_PER_WORKER = 1
-SGD_MINIBATCH_SIZE = 4096  # 256 = minimum for efficient CPU training
+SGD_MINIBATCH_SIZE = 8192  # 256 = minimum for efficient CPU training
 LR = 2e-4
 VF_CLIP_PARAM = 2.0
 NUM_SGD_ITER = 10
@@ -154,7 +154,7 @@ if __name__ == "__main__":
       "lstm_cell_size": 128,
   }
 
-  rollout_workers = (args.num_cpus - 1) // args.parallelism
+  rollout_workers = (args.num_cpus - args.parallelism) // args.parallelism
 
   # TODO: Get maxEpisodeLengthFrames from substrate definition
   train_batch_size = max(
