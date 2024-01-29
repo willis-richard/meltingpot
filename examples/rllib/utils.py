@@ -24,7 +24,7 @@ from ml_collections.config_dict import ConfigDict
 import numpy as np
 from ray.rllib import algorithms
 from ray.rllib.env import multi_agent_env
-from ray.rllib.policy import sample_batch
+from ray.rllib.policy import Policy, sample_batch
 from ray.rllib.utils.typing import MultiAgentDict
 
 from ..gym import utils
@@ -147,7 +147,7 @@ def env_creator(env_config: ConfigDict):
 
 
 class RayModelPolicy(policy.Policy[policy.State]):
-  """Policy wrapping an RLLib model for inference.
+  """Wraps an RLLib algorithm for inference.
 
   Note: Currently only supports a single input, batching is not enabled
   """
@@ -191,6 +191,61 @@ class RayModelPolicy(policy.Policy[policy.State]):
     """See base class."""
     self._prev_action = 0
     return self._model.get_policy(self._policy_id).get_initial_state()
+
+  def close(self) -> None:
+    """See base class."""
+
+
+class RayPolicy(policy.Policy):
+  """Wraps an RLLib policy for inference.
+
+  Loads the policy from a Policy checkpoint and filters observations.
+
+  Note: Currently only supports a single input, batching is not enabled
+  """
+
+  def __init__(self,
+               checkpoint_path: str,
+               individual_obs: List[str],
+               policy_id: str = sample_batch.DEFAULT_POLICY_ID) -> None:
+    """Initialize a policy instance.
+
+    Args:
+      checkpoint_path: An rllib.trainer.Trainer checkpoint.
+      individual_obs: observation keys for the agent (not global observations)
+      policy_id: Which policy to use (if trained in multi_agent mode)
+    """
+    policy_path = f'{checkpoint_path}/policies/{policy_id}'
+    self._policy = Policy.from_checkpoint(policy_path)
+    self._individual_obs = individual_obs
+    self._prev_action = 0
+
+  def initial_state(self) -> policy.State:
+    """See base class."""
+    self._prev_action = 0
+    state = self._policy.get_initial_state()
+    self._prev_state = state
+    return state
+
+  def step(self, timestep: dm_env.TimeStep,
+           prev_state: policy.State) -> Tuple[int, policy.State]:
+    """See base class."""
+    observations = {
+        key: value
+        for key, value in timestep.observation.items()
+        if key in self._individual_obs
+    }
+
+    # We want the logic to be stateless so don't use prev_state from input
+    action, state, _ = self._policy.compute_single_action(
+        observations,
+        self._prev_state,
+        prev_action=self._prev_action,
+        prev_reward=timestep.reward)
+
+    self._prev_action = action
+    self._prev_state = state
+    return action, state
 
   def close(self) -> None:
     """See base class."""
