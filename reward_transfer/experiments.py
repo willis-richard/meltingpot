@@ -9,6 +9,7 @@ from ray import tune
 from ray.rllib.algorithms.ppo import PPO, PPOConfig
 from ray.rllib.policy.policy import PolicySpec
 from ray.tune.registry import register_env
+from ray.tune.schedulers import ASHAScheduler
 from typing import Dict
 
 from examples.rllib import utils
@@ -113,7 +114,6 @@ if __name__ == "__main__":
     sprite_y = rgb_shape[1]
 
     policies[role] = PolicySpec(
-        # policy_class=None,  # use default policy
         observation_space=base_env.observation_space[f"player_{i}"],
         action_space=base_env.action_space[f"player_{i}"],
         config={
@@ -151,7 +151,8 @@ if __name__ == "__main__":
 
   config = PPOConfig().training(
       model=DEFAULT_MODEL,
-      lr=LR,
+      # lr=LR,
+      lr=tune.grid_search([LR*10, LR, LR*0.1]),
       train_batch_size=train_batch_size,
       lambda_=0.80,
       vf_loss_coeff=0.5,
@@ -194,44 +195,62 @@ if __name__ == "__main__":
       },
       evaluation_duration=EVAL_DURATION,
   ).experimental(
-    _disable_preprocessor_api=False  # will be set to true in future versions of Ray, was True in baselines
+    # will be set to true in future versions of Ray, was True in baselines
+    # I don't know how to get this to work though - and I can't use the baselines
+    # policy wrapper either without it
+    _disable_preprocessor_api=False
   )
 
-  # TODO: MyCallbacks are putting the reward as a list or scalar, and that is the opposite to what is required
-  # MyCallbacks.set_transfer_map({f"policy_{i}": 1 - i/5 for i in range(n)})
-  # config = config.callbacks(MyCallbacks)
+  # each worker will get its own copy of MyCallbacks
+  # and careful about setting the value of a mutable class member
 
-  tune_config = tune.TuneConfig(reuse_actors=False)
+  # MyCallbacks.set_transfer_map = {"default": 0.5}
+  # for role in unique_roles:
+  #   MyCallbacks.transfer_map[role] = 0.5
+  config = config.callbacks(MyCallbacks)
 
   checkpoint_config = CheckpointConfig(
       num_to_keep=KEEP_CHECKPOINTS_NUM,
       checkpoint_frequency=CHECKPOINT_FREQ,
       checkpoint_at_end=True)
 
-  experiment = tune.run(
-      run_or_experiment="PPO",
-      name=args.substrate,
-      metric="episode_reward_mean",
-      mode="max",
-      stop={"training_iteration": args.n_iterations},
-      config=config,
-      checkpoint_config=checkpoint_config,
-      verbose=VERBOSE,
-      log_to_file=False,
-      local_dir=args.local_dir,
-      # storage_path=args.local_dir
-    )
-
-  # run_config = RunConfig(
+  # experiment = tune.run(
+  #     run_or_experiment="PPO",
   #     name=args.substrate,
-  #     local_dir=args.local_dir,
+  #     metric="episode_reward_mean",
+  #     mode="max",
   #     stop={"training_iteration": args.n_iterations},
+  #     config=config,
   #     checkpoint_config=checkpoint_config,
-  #     verbose=VERBOSE)
+  #     verbose=VERBOSE,
+  #     log_to_file=False,
+  #     local_dir=args.local_dir,
+  #     # storage_path=args.local_dir
+  #   )
 
-  # tuner = tune.Tuner(
-  #     "PPO", param_space=config, tune_config=tune_config, run_config=run_config)
-  # results = tuner.fit()
+  run_config = RunConfig(
+      name=args.substrate,
+      local_dir=args.local_dir,
+      # stop={"training_iteration": args.n_iterations},
+      checkpoint_config=checkpoint_config,
+      verbose=VERBOSE)
+
+  asha_scheduler = ASHAScheduler(
+      time_attr='training_iteration',
+      metric='episode_reward_mean',
+      mode='min',
+      max_t=args.n_iterations,
+      grace_period=10,
+      reduction_factor=3,
+      brackets=1,
+  )
+
+  tune_config = tune.TuneConfig(scheduler=asha_scheduler)
+
+
+  tuner = tune.Tuner(
+      "PPO", param_space=config, tune_config=tune_config, run_config=run_config)
+  results = tuner.fit()
 
   # best_result = results.get_best_result(metric="episode_reward_mean", mode="max")
   # print(best_result)
