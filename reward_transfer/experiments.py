@@ -152,7 +152,7 @@ if __name__ == "__main__":
   config = PPOConfig().training(
       model=DEFAULT_MODEL,
       # lr=LR,
-      lr=tune.grid_search([LR*10, LR, LR*0.1]),
+      lr=tune.grid_search([LR*16, LR*4, LR, LR / 4, LR / 16]),
       train_batch_size=train_batch_size,
       lambda_=0.80,
       vf_loss_coeff=0.5,
