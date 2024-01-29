@@ -64,6 +64,16 @@ if __name__ == "__main__":
       type=str,
       default=None,
       help="Custom tmp location for temporary ray logs")
+  parser.add_argument(
+      "--parallelism",
+      type=int,
+      default=1,
+      help="Number of samples to split the resources over")
+  parser.add_argument(
+      "--num_samples",
+      type=int,
+      default=1,
+      help="Number of samples to run")
   args = parser.parse_args()
 
   ray.init(
@@ -144,7 +154,7 @@ if __name__ == "__main__":
       "lstm_cell_size": 128,
   }
 
-  rollout_workers = args.num_cpus - 1
+  rollout_workers = (args.num_cpus - 1) // args.parallelism
 
   # TODO: Get maxEpisodeLengthFrames from substrate definition
   train_batch_size = max(
@@ -184,7 +194,7 @@ if __name__ == "__main__":
   ).debugging(
       log_level=LOGGING_LEVEL,
   ).resources(
-      num_gpus=args.num_gpus,
+      num_gpus=args.num_gpus / args.parallelism,
       num_cpus_per_worker=1,
       num_gpus_per_worker=0,
       num_cpus_for_local_worker=1,
@@ -256,7 +266,7 @@ if __name__ == "__main__":
       mode='max',
   )
 
-  tune_config = tune.TuneConfig(num_samples=10, search_alg=optuna_search, scheduler=asha_scheduler)
+  tune_config = tune.TuneConfig(num_samples=args.num_samples, search_alg=optuna_search, scheduler=asha_scheduler)
 
   tuner = tune.Tuner(
       "PPO", param_space=config, tune_config=tune_config, run_config=run_config)
