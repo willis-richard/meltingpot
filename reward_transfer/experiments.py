@@ -195,10 +195,7 @@ if __name__ == "__main__":
       log_level=LOGGING_LEVEL,
   ).resources(
       num_gpus=args.num_gpus / args.parallelism,
-      num_cpus_per_worker=1,
-      num_gpus_per_worker=0,
-      num_cpus_for_local_worker=1,
-      num_learner_workers=0,
+      num_gpus_per_learner_worker=args.num_gpus / args.parallelism,
   ).framework(
       framework="tf2",
       eager_tracing=True,

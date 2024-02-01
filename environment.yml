@@ -5,16 +5,21 @@ dependencies:
   - python>=3.11.7
 
   # framework
-  ## if gpu:
-  # - cudatoolkit>=11.8  # may want to use the system's version
-  # - cudnn>=8.8.0.121
-  # - gputil>=1.4.0
+  ## if tf:
+  # - tensorflow-probability>=0.22.1
   # - tensorflow-gpu==2.14.0  # alias for tensorflow
-  ## else:
-  - tensorflow-cpu>=2.14.0
+  # - tensorflow-cpu>=2.14.0
+  ## else if torch
+  - pytorch
+  - torchvision
   ## done
 
-  - tensorflow-probability>=0.22.1
+  ## if gpu:
+  # - cudnn  # not installing as already on the system
+  # - cudatoolkit  # not installing as already on the system
+  - cuda-version==12.0  # same as the system's version (run vidia-smi)
+  - gputil>=1.4.0
+  ## done
 
   # meltingpot deps
   - absl-py>=2.0.0
