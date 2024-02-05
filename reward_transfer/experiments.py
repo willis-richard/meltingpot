@@ -27,7 +27,6 @@ KEEP_CHECKPOINTS_NUM = 1  # Default None
 CHECKPOINT_FREQ = 50  # Default 0
 
 NUM_ENVS_PER_WORKER = 1
-NUM_EPISODES_PER_WORKER = 1
 SGD_MINIBATCH_SIZE = 8192  # 256 = minimum for efficient CPU training
 LR = 2e-4
 VF_CLIP_PARAM = 2.0
@@ -65,15 +64,20 @@ if __name__ == "__main__":
       default=None,
       help="Custom tmp location for temporary ray logs")
   parser.add_argument(
-      "--parallelism",
+      "--rollout_workers",
       type=int,
-      default=1,
-      help="Number of samples to split the resources over")
+      required=True,
+      help="Number of rollout workers, should be in [0,num_cpus]")
   parser.add_argument(
       "--num_samples",
       type=int,
       default=1,
       help="Number of samples to run")
+  parser.add_argument(
+      "--episodes_per_worker",
+      type=int,
+      default=1,
+      help="Number of episodes per each rollout worker in a training batch")
   args = parser.parse_args()
 
   ray.init(
@@ -154,11 +158,11 @@ if __name__ == "__main__":
       "lstm_cell_size": 128,
   }
 
-  rollout_workers = (args.num_cpus - args.parallelism) // args.parallelism
+  parallelism = max(1, args.num_cpus // (1 + args.rollout_workers))
 
   # TODO: Get maxEpisodeLengthFrames from substrate definition
   train_batch_size = max(
-      1, rollout_workers) * NUM_ENVS_PER_WORKER * NUM_EPISODES_PER_WORKER * horizon
+      1, args.rollout_workers) * NUM_ENVS_PER_WORKER * args.episodes_per_worker * horizon
 
   config = PPOConfig().training(
       model=DEFAULT_MODEL,
@@ -179,7 +183,7 @@ if __name__ == "__main__":
       vf_clip_param=tune.uniform(1, 20),
   ).rollouts(
       batch_mode="complete_episodes",
-      num_rollout_workers=rollout_workers,
+      num_rollout_workers=args.rollout_workers,
       rollout_fragment_length=100,
       num_envs_per_worker=NUM_ENVS_PER_WORKER,
   ).multi_agent(
@@ -194,8 +198,8 @@ if __name__ == "__main__":
   ).debugging(
       log_level=LOGGING_LEVEL,
   ).resources(
-      num_gpus=args.num_gpus / args.parallelism,
-      num_gpus_per_learner_worker=args.num_gpus / args.parallelism,
+      num_gpus=args.num_gpus / parallelism,
+      num_gpus_per_learner_worker=args.num_gpus / parallelism,
   ).framework(
       framework="tf2",
       eager_tracing=True,
