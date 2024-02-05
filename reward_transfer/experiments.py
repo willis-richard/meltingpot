@@ -1,5 +1,6 @@
 """Run experiments"""
 
+
 import argparse
 from collections import defaultdict
 from ml_collections.config_dict import ConfigDict
@@ -27,7 +28,7 @@ KEEP_CHECKPOINTS_NUM = 1  # Default None
 CHECKPOINT_FREQ = 50  # Default 0
 
 NUM_ENVS_PER_WORKER = 1
-SGD_MINIBATCH_SIZE = 8192  # 256 = minimum for efficient CPU training
+SGD_MINIBATCH_SIZE = 250  # 256 = minimum for efficient CPU training
 LR = 2e-4
 VF_CLIP_PARAM = 2.0
 NUM_SGD_ITER = 10
@@ -160,9 +161,11 @@ if __name__ == "__main__":
 
   parallelism = max(1, args.num_cpus // (1 + args.rollout_workers))
 
+  assert args.episodes_per_worker >= NUM_ENVS_PER_WORKER
+
   # TODO: Get maxEpisodeLengthFrames from substrate definition
   train_batch_size = max(
-      1, args.rollout_workers) * NUM_ENVS_PER_WORKER * args.episodes_per_worker * horizon
+      1, args.rollout_workers) * args.episodes_per_worker * horizon
 
   config = PPOConfig().training(
       model=DEFAULT_MODEL,
@@ -201,7 +204,7 @@ if __name__ == "__main__":
       num_gpus=args.num_gpus / parallelism,
       num_gpus_per_learner_worker=args.num_gpus / parallelism,
   ).framework(
-      framework="tf2",
+      framework="tf",
       eager_tracing=True,
   ).reporting(
       metrics_num_episodes_for_smoothing=1,
@@ -257,8 +260,8 @@ if __name__ == "__main__":
       metric='episode_reward_mean',
       mode='max',
       max_t=args.n_iterations,
-      grace_period=max(1, args.n_iterations//10),
-      reduction_factor=3,
+      grace_period=max(1, args.n_iterations//4),
+      reduction_factor=2,
       brackets=1,
   )
 
