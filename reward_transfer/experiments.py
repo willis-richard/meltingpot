@@ -234,50 +234,55 @@ if __name__ == "__main__":
       checkpoint_frequency=CHECKPOINT_FREQ,
       checkpoint_at_end=True)
 
-  # experiment = tune.run(
-  #     run_or_experiment="PPO",
+  experiment = tune.run(
+    run_or_experiment="PPO",
+    name=args.substrate,
+    metric="episode_reward_mean",
+    mode="max",
+    stop={"training_iteration": args.n_iterations},
+    config=config,
+    num_samples=args.num_samples,
+    storage_path=args.local_dir,
+    search_alg="optuna",
+    scheduler="AsyncHyperBand",
+    checkpoint_config=checkpoint_config,
+    verbose=VERBOSE,
+    log_to_file=False,
+  )
+
+  # run_config = RunConfig(
   #     name=args.substrate,
-  #     metric="episode_reward_mean",
-  #     mode="max",
-  #     stop={"training_iteration": args.n_iterations},
-  #     config=config,
-  #     checkpoint_config=checkpoint_config,
-  #     verbose=VERBOSE,
-  #     log_to_file=False,
   #     local_dir=args.local_dir,
-  #     # storage_path=args.local_dir
-  #   )
+  #     stop={"training_iteration": args.n_iterations},
+  #     checkpoint_config=checkpoint_config,
+  #     verbose=VERBOSE)
 
-  run_config = RunConfig(
-      name=args.substrate,
-      local_dir=args.local_dir,
-      stop={"training_iteration": args.n_iterations},
-      checkpoint_config=checkpoint_config,
-      verbose=VERBOSE)
+  # asha_scheduler = ASHAScheduler(
+  #     time_attr='training_iteration',
+  #     metric='episode_reward_mean',
+  #     mode='max',
+  #     max_t=args.n_iterations,
+  #     grace_period=max(1, args.n_iterations//4),
+  #     reduction_factor=2,
+  #     brackets=1,
+  # )
 
-  asha_scheduler = ASHAScheduler(
-      time_attr='training_iteration',
-      metric='episode_reward_mean',
-      mode='max',
-      max_t=args.n_iterations,
-      grace_period=max(1, args.n_iterations//4),
-      reduction_factor=2,
-      brackets=1,
-  )
+  # optuna_search = OptunaSearch(
+  #     metric='episode_reward_mean',
+  #     mode='max',
+  # )
 
-  optuna_search = OptunaSearch(
-      metric='episode_reward_mean',
-      mode='max',
-  )
+  # tune_config = tune.TuneConfig(
+  #   num_samples=args.num_samples,
+  #   search_alg=optuna_search,
+  #   scheduler=asha_scheduler)
 
-  tune_config = tune.TuneConfig(num_samples=args.num_samples, search_alg=optuna_search, scheduler=asha_scheduler)
+  # tuner = tune.Tuner(
+  #     "PPO", param_space=config, tune_config=tune_config, run_config=run_config)
 
-  tuner = tune.Tuner(
-      "PPO", param_space=config, tune_config=tune_config, run_config=run_config)
+  # results = tuner.fit()
 
-  results = tuner.fit()
-
-  best_result = results.get_best_result(metric="episode_reward_mean", mode="max")
-  print(best_result)
+  # best_result = results.get_best_result(metric="episode_reward_mean", mode="max")
+  # print(best_result)
 
   ray.shutdown()
