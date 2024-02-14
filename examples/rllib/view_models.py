@@ -60,17 +60,17 @@ def main():
       " a specific run, provide a path, expected to be of the format "
       " ~/ray_results/PPO/experiment_state-DATETIME.json")
   parser.add_argument(
-      "--trial",
-      type=str,
-      default=None,
-      help="If provided, use this trial instead of the best trial")
-  parser.add_argument(
       "--checkpoint",
       type=str,
       default=None,
       help="If provided, use this checkpoint instead of the last checkpoint")
   parser.add_argument(
       "--human", action="store_true", help="a human controls one of the bots")
+  parser.add_argument(
+      "--fps",
+      type=int,
+      default=8,
+      help="Frames per second (default 8)")
 
   args = parser.parse_args()
 
@@ -83,22 +83,12 @@ def main():
       default_metric="episode_reward_mean",
       default_mode="max")
 
-  if args.trial:
-    trial = None
-    for idx, trial_path in enumerate(experiment._get_trial_paths()):
-      if args.trial in trial_path:
-        trial = experiment.trials[idx]
-    assert trial is not None
+  if args.checkpoint:
+    checkpoint_path = args.checkpoint
   else:
-    trial = experiment.get_best_trial(scope="last")
+    checkpoint_path = experiment.best_checkpoint
 
-  checkpoint_path = args.checkpoint if args.checkpoint else trial.checkpoint.path
-
-  config = trial.config
-  # checkpoint_path = experiment.get_trial_checkpoints_paths(best_trial)[-1][0]
-  # config = experiment.get_best_config()
-  # checkpoint_path = experiment.get_best_checkpoint()
-  # TODO: Do I need a serious evaluation during these passes?
+  config = experiment.best_config
 
   config["explore"] = False
   config["num_rollout_workers"] = 0
@@ -109,7 +99,10 @@ def main():
   # Create a new environment to visualise
   env_config = config["env_config"]
   env = env_creator(env_config).get_dmlab2d_env()
+  obs_spec = env.observation_spec()
+  shape = obs_spec[0]["WORLD.RGB"].shape
 
+  # Setup the players
   roles = env_config["roles"]
   num_players = len(roles)
   bots = [
@@ -120,24 +113,19 @@ def main():
   ]
   bots = bots[1:] if args.human else bots
 
-  timestep = env.reset()
-  states = [bot.initial_state() for bot in bots]
-  actions = [0] * len(bots)
-
-
-  obs_spec = env.observation_spec()
-  shape = obs_spec[0]["WORLD.RGB"].shape
-
   # Configure the pygame display
   pygame.init()
   scale = 1000 // max(int(shape[0]), int(shape[1]))
-  fps = 8
+  fps = args.fps
   game_display = pygame.display.set_mode(
       (int(shape[1] * scale), int(shape[0] * scale)))
   clock = pygame.time.Clock()
   pygame.display.set_caption("DM Lab2d")
 
   total_rewards = np.zeros(num_players)
+  timestep = env.reset()
+  states = [bot.initial_state() for bot in bots]
+  actions = [0] * len(bots)
 
   for _ in range(500):
     obs = timestep.observation[0]["WORLD.RGB"]
