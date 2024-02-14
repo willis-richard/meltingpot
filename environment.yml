@@ -38,6 +38,7 @@ dependencies:
 
   # optionals
   - jupyterlab>=4.0.12
+  - matplotlib
   - opencv>=4.9.0  # for competition
 
   # dev packages
@@ -58,4 +59,5 @@ dependencies:
 
     # dev packages
     - importmagic>=0.1.7
+    - ipywidgets
     # - pylsp-rope  # leave out for now
