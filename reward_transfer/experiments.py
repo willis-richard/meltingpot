@@ -3,19 +3,20 @@
 
 import argparse
 from collections import defaultdict
+from typing import Dict
+
+from meltingpot import substrate
 from ml_collections.config_dict import ConfigDict
 import ray
-from ray.air import CheckpointConfig, RunConfig
 from ray import tune
-from ray.rllib.algorithms.ppo import PPO, PPOConfig
+from ray.air import CheckpointConfig
+from ray.rllib.algorithms.ppo import PPOConfig
 from ray.rllib.policy.policy import PolicySpec
 from ray.tune.registry import register_env
 from ray.tune.schedulers import ASHAScheduler
 from ray.tune.search.optuna import OptunaSearch
-from typing import Dict
 
 from examples.rllib import utils
-from meltingpot import substrate
 from reward_transfer.callbacks import MyCallbacks
 
 # Use Tuner.fit() to gridsearch over exchange values
@@ -79,6 +80,15 @@ if __name__ == "__main__":
       type=int,
       default=1,
       help="Number of episodes per each rollout worker in a training batch")
+  parser.add_argument(
+      "--max_concurrent_trials",
+      type=int,
+      default=None,
+      help="maximum number of concurrent trials to run")
+  parser.add_argument(
+      "--resume",
+      action="store_true",
+      help="Resume the last trial with name/local_dir")
   args = parser.parse_args()
 
   ray.init(
@@ -234,20 +244,37 @@ if __name__ == "__main__":
       checkpoint_frequency=CHECKPOINT_FREQ,
       checkpoint_at_end=True)
 
+  asha_scheduler = ASHAScheduler(
+      time_attr='training_iteration',
+      metric='episode_reward_mean',
+      mode='max',
+      max_t=args.n_iterations,
+      grace_period=max(1, args.n_iterations//4),
+      reduction_factor=2,
+      brackets=1,
+  )
+
+  optuna_search = OptunaSearch(
+      metric='episode_reward_mean',
+      mode='max',
+  )
+
   experiment = tune.run(
     run_or_experiment="PPO",
     name=args.substrate,
-    metric="episode_reward_mean",
-    mode="max",
+    # metric="episode_reward_mean",
+    # mode="max",
     stop={"training_iteration": args.n_iterations},
     config=config,
     num_samples=args.num_samples,
     storage_path=args.local_dir,
-    search_alg="optuna",
-    scheduler="AsyncHyperBand",
+    search_alg=optuna_search,
+    scheduler=asha_scheduler,
     checkpoint_config=checkpoint_config,
     verbose=VERBOSE,
     log_to_file=False,
+    max_concurrent_trials=args.max_concurrent_trials,
+    resume=args.resume,
   )
 
   # run_config = RunConfig(
@@ -256,21 +283,6 @@ if __name__ == "__main__":
   #     stop={"training_iteration": args.n_iterations},
   #     checkpoint_config=checkpoint_config,
   #     verbose=VERBOSE)
-
-  # asha_scheduler = ASHAScheduler(
-  #     time_attr='training_iteration',
-  #     metric='episode_reward_mean',
-  #     mode='max',
-  #     max_t=args.n_iterations,
-  #     grace_period=max(1, args.n_iterations//4),
-  #     reduction_factor=2,
-  #     brackets=1,
-  # )
-
-  # optuna_search = OptunaSearch(
-  #     metric='episode_reward_mean',
-  #     mode='max',
-  # )
 
   # tune_config = tune.TuneConfig(
   #   num_samples=args.num_samples,
