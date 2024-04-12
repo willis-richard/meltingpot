@@ -7,8 +7,8 @@ dependencies:
   # framework
   ## if tf:
   - tensorflow-probability>=0.22.1
-  - tensorflow-gpu==2.14.0  # alias for tensorflow
-  # - tensorflow-cpu>=2.14.0
+  # - tensorflow-gpu>=2.14.0  # alias for tensorflow
+  - tensorflow-cpu>=2.14.0
   ## else if torch
   - pytorch>=2.0.0
   - torchvision>=0.15.2
@@ -33,7 +33,7 @@ dependencies:
 
   # reward_transfer deps
   - pandas>=2.2.0
-  - ray-rllib==2.8.1
+  - ray-rllib==2.10.0
   - optuna>=3.5.0
 
   # optionals
