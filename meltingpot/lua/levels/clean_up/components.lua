@@ -94,16 +94,22 @@ function DirtTracker:__init__(kwargs)
       {'name', args.default('DirtTracker')},
       {'activeState', args.default('dirt'), args.stringType},
       {'inactiveState', args.default('dirtWait'), args.stringType},
+      {'cap', args.default(False), args.booleanType},
   })
   DirtTracker.Base.__init__(self, kwargs)
   self._activeState = kwargs.activeState
   self._inactiveState = kwargs.inactiveState
+  self._cap = kwargs.cap
 end
 
 function DirtTracker:postStart()
   local sceneObject = self.gameObject.simulation:getSceneObject()
   self._riverMonitor = sceneObject:getComponent('RiverMonitor')
-  self._dirtSpawner = sceneObject:getComponent('DirtSpawner')
+  if self._cap then
+    self._dirtSpawner = sceneObject:getComponent('DirtSpawnerCapped')
+  else
+    self._dirtSpawner = sceneObject:getComponent('DirtSpawner')
+  end
 
   -- If starting in inactive state, must register with the dirt spawner and
   -- river monitor.
@@ -347,6 +353,72 @@ function DirtSpawner:addPieceToPotential(piece)
   self._potentialDirts[piece] = true
 end
 
+function DirtSpawner:removePieceFromPotential(piece)
+  self._potentialDirts[piece] = nil
+end
+
+function DirtSpawner:addPieceToPotential(piece)
+  self._potentialDirts[piece] = true
+end
+
+
+--[[ The DirtSpawnerCapped is a scene component that spawns dirt at a fixed rate
+  until a threshold amount has been reached
+
+Arguments:
+`dirtSpawnProbability` (float in [0, 1]): Probability of spawning one dirt on
+each frame.
+]]
+local DirtSpawnerCapped = class.Class(component.Component)
+
+function DirtSpawnerCapped:__init__(kwargs)
+  kwargs = args.parse(kwargs, {
+      {'name', args.default('DirtSpawnerCapped')},
+      -- Dirt will not spawn above this proportion
+      {'threshold', args.ge(0.0), args.le(1.0)},
+      -- Probability per step of one dirt cell spawning in the river.
+      {'dirtSpawnProbability', args.ge(0.0), args.le(1.0)},
+  })
+  DirtSpawnerCapped.Base.__init__(self, kwargs)
+  self._config.threshold = kwargs.threshold
+  self._dirtSpawnProbability = kwargs.dirtSpawnProbability
+  self._potentialDirts = set.Set{}
+end
+
+function DirtSpawnerCapped:reset()
+  self._potentialDirts = set.Set{}
+  self._timeStep = 1
+end
+
+function DirtSpawnerCapped:postStart()
+  local sceneObject = self.gameObject.simulation:getSceneObject()
+  self._riverMonitor = sceneObject:getComponent('RiverMonitor')
+end
+
+function DirtSpawnerCapped:update()
+  local dirtCount = self._riverMonitor:getDirtCount()
+  local cleanCount = self._riverMonitor:getCleanCount()
+  local dirtFraction = dirtCount / (dirtCount + cleanCount)
+
+  if dirtFraction < self._config.threshold then
+    if random:uniformReal(0.0, 1.0) < self._dirtSpawnProbability then
+      local piece = random:choice(set.toSortedList(self._potentialDirts))
+      if piece then
+        self.gameObject.simulation:getGameObjectFromPiece(piece):setState(
+          'dirt')
+      end
+    end
+  end
+  self._timeStep = self._timeStep + 1
+end
+
+function DirtSpawnerCapped:removePieceFromPotential(piece)
+  self._potentialDirts[piece] = nil
+end
+
+function DirtSpawnerCapped:addPieceToPotential(piece)
+  self._potentialDirts[piece] = true
+end
 
 -- An object that is edible switches state when an avatar touches it, and
 -- provides a reward. It can be used in combination to the FixedRateRegrow.
@@ -572,6 +644,7 @@ local allComponents = {
     -- Scene components.
     RiverMonitor = RiverMonitor,
     DirtSpawner = DirtSpawner,
+    DirtSpawnerCapped = DirtSpawnerCapped,
     GlobalData = GlobalData,
 }
 

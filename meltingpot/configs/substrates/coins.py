@@ -36,9 +36,9 @@ MANDATED_NUM_PLAYERS = 2
 COIN_PALETTES = {
     "coin_red": shapes.get_palette((238, 102, 119)),    # Red.
     "coin_blue": shapes.get_palette((68, 119, 170)),    # Blue.
-    "coin_yellow": shapes.get_palette((204, 187, 68)),  # Yellow.
-    "coin_green": shapes.get_palette((34, 136, 51)),    # Green.
-    "coin_purple": shapes.get_palette((170, 51, 119))   # Purple.
+    # "coin_yellow": shapes.get_palette((204, 187, 68)),  # Yellow.
+    # "coin_green": shapes.get_palette((34, 136, 51)),    # Green.
+    # "coin_purple": shapes.get_palette((170, 51, 119))   # Purple.
 }
 
 
@@ -120,7 +120,7 @@ SCENE = {
         {
             "component": "StochasticIntervalEpisodeEnding",
             "kwargs": {
-                "minimumFramesPerEpisode": 500,
+                "minimumFramesPerEpisode": 2000,
                 "intervalLength": 100,  # Set equal to unroll length.
                 "probabilityTerminationPerInterval": 0.05
             }
@@ -401,7 +401,7 @@ def get_avatar(coin_type: str):
 def get_prefabs(
     coin_type_a: str,
     coin_type_b: str,
-    regrow_rate: float = 0.0005,
+    regrow_rate: float = 0.003,
     reward_self_for_match: float = 1.0,
     reward_self_for_mismatch: float = 1.0,
     reward_other_for_match: float = 0.0,
@@ -514,7 +514,7 @@ def build(
       levelDirectory="meltingpot/lua/levels",
       numPlayers=num_players,
       # Define upper bound of episode length since episodes end stochastically.
-      maxEpisodeLengthFrames=500,
+      maxEpisodeLengthFrames=2000,
       spriteSize=8,
       topology="BOUNDED",  # Choose from ["BOUNDED", "TORUS"],
       simulation={
