@@ -180,20 +180,20 @@ if __name__ == "__main__":
   config = PPOConfig().training(
       model=DEFAULT_MODEL,
       train_batch_size=train_batch_size,
-      sgd_minibatch_size=min(SGD_MINIBATCH_SIZE, train_batch_size),
+      # sgd_minibatch_size=min(SGD_MINIBATCH_SIZE, train_batch_size),
+      sgd_minibatch_size=tune.grid_search([250, 5000]),
       num_sgd_iter=NUM_SGD_ITER,
       # lr=LR,
       # lr=tune.loguniform(1e-5, 5e-4),
-      lr=tune.grid_search([1e-5, 3e-5, 1e-4, 3e-4]),
+      lr=tune.grid_search([1e-5, 7e-5, 5e-4]),
       # lambda_=0.80,
       # lambda_=tune.uniform(0.5, 1),
       lambda_=tune.grid_search([0.5, 1]),
       # vf_loss_coeff=0.5,
       # vf_loss_coeff=tune.uniform(0.2, 1),
-      vf_loss_coeff=tune.grid_search([0.2, 0.6, 1]),
-      # entropy_coeff=ENTROPY_COEFF,
+      vf_loss_coeff=tune.grid_search([0.4, 0.8]),
+      entropy_coeff=ENTROPY_COEFF,
       # entropy_coeff=tune.loguniform(3e-4, 3e-2),
-      entropy_coeff=tune.grid_search([3e-4, 3e-2]),
       # clip_param=0.2,
       # clip_param=tune.uniform(0.2, 0.4),
       clip_param=tune.grid_search([0.2, 0.4]),
@@ -240,6 +240,8 @@ if __name__ == "__main__":
   # each worker will get its own copy of MyCallbacks
   # and careful about setting the value of a mutable class member
 
+  # TODO: don't use a class method to set the transfer map. Also, is it a mutable issue?
+  # Can construct a dict from a tuple of stuff.
   # MyCallbacks.set_transfer_map = {"default": 0.5}
   # for role in unique_roles:
   #   MyCallbacks.transfer_map[role] = 0.5

@@ -22,7 +22,7 @@ class MyCallbacks(DefaultCallbacks):
   def __init__(self):
     super().__init__()
 
-  transfer_map = {"default": 0.5}
+  transfer_map = {"default": 0.2}
 
   @classmethod
   def set_transfer_map(cls, new_map: Dict[AgentID, float]):
