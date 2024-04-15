@@ -30,7 +30,6 @@ VERBOSE = 1
 KEEP_CHECKPOINTS_NUM = 1  # Default None
 CHECKPOINT_FREQ = 50  # Default 0
 
-NUM_ENVS_PER_WORKER = 1
 SGD_MINIBATCH_SIZE = 30000
 LR = 2e-4
 VF_CLIP_PARAM = 2.0
@@ -84,10 +83,10 @@ if __name__ == "__main__":
       default=1,
       help="Number of samples to run")
   parser.add_argument(
-      "--episodes_per_worker",
+      "--envs_per_worker",
       type=int,
       default=1,
-      help="Number of episodes per each rollout worker in a training batch")
+      help="Number of episodes each worker runs in parallel")
   parser.add_argument(
       "--max_concurrent_trials",
       type=int,
@@ -179,11 +178,9 @@ if __name__ == "__main__":
 
   parallelism = max(1, args.num_cpus // (1 + args.rollout_workers))
 
-  assert args.episodes_per_worker >= NUM_ENVS_PER_WORKER
-
   # TODO: Get maxEpisodeLengthFrames from substrate definition
   train_batch_size = max(
-      1, args.rollout_workers) * args.episodes_per_worker * horizon
+      1, args.rollout_workers) * args.envs_per_worker * horizon
 
   config = PPOConfig().training(
       model=DEFAULT_MODEL,
@@ -211,7 +208,7 @@ if __name__ == "__main__":
       batch_mode="complete_episodes",
       num_rollout_workers=args.rollout_workers,
       rollout_fragment_length=100,
-      num_envs_per_worker=NUM_ENVS_PER_WORKER,
+      num_envs_per_worker=args.envs_per_worker,
   ).multi_agent(
       policies=policies,
       policy_mapping_fn=policy_mapping_fn,
