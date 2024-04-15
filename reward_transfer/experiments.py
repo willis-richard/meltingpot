@@ -52,6 +52,12 @@ if __name__ == "__main__":
       required=True,
       help="number of training iterations to use")
   parser.add_argument(
+      "--framework",
+      type=str,
+      required=True,
+      choice=["torch", "tf", "tf2"],
+      help="which deep learning framework to use")
+  parser.add_argument(
       "--num_cpus", type=int, required=True, help="number of CPUs to use")
   parser.add_argument(
       "--num_gpus", type=int, default=0, help="number of GPUs to use")
@@ -220,8 +226,7 @@ if __name__ == "__main__":
       num_gpus=args.num_gpus / parallelism,
       num_gpus_per_learner_worker=args.num_gpus / parallelism,
   ).framework(
-      framework="tf",
-      eager_tracing=True,
+      framework=args.framework,
   ).reporting(
       metrics_num_episodes_for_smoothing=1,
   ).evaluation(
