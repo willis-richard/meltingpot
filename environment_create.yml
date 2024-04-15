@@ -6,7 +6,7 @@ dependencies:
 
   # framework
   ## if tf:
-  - tensorflow
+  - tensorflow-gpu
   ## else if torch
   # - pytorch>=2.0.0
   # - torchvision>=0.15.2
@@ -27,13 +27,13 @@ dependencies:
   - ml-collections
   - networkx
   - numpy
-  - opencv
+  - opencv  # only needed for evaluation?
   - pandas
   - pygame
   - reactivex
 
   # reward_transfer deps
-  - ray-rllib==2.10.0
+  - ray-rllib
   - optuna
   # - pandas
 
