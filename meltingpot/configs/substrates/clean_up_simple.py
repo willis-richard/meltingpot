@@ -639,7 +639,7 @@ def get_config():
       # Global switching signals for puppeteers.
       "NUM_OTHERS_WHO_CLEANED_THIS_STEP": specs.float64(),
       # Debug only (do not use the following observations in policies).
-      "WORLD.RGB": specs.rgb(168, 240),
+      "WORLD.RGB": specs.rgb(25 * SPRITE_SIZE, 18 * SPRITE_SIZE),
   })
 
   # The roles assigned to each player.

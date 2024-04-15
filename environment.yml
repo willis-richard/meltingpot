@@ -6,40 +6,41 @@ dependencies:
 
   # framework
   ## if tf:
-  - tensorflow-probability>=0.22.1
   # - tensorflow-gpu>=2.14.0  # alias for tensorflow
   - tensorflow-cpu>=2.14.0
   ## else if torch
-  - pytorch>=2.0.0
-  - torchvision>=0.15.2
+  # - pytorch>=2.0.0
+  # - torchvision>=0.15.2
   ## done
 
   ## if gpu:
   # - cudnn  # not installing as already on the system
-  - cudatoolkit<=12.0  # Cannot be later than the cuda API the GPU drivers are compatible with (run nvidia-smi)
-  - gputil>=1.4.0
+  # - cudatoolkit<=12.0  # not installing as already on the system  # Cannot be later than the cuda API the GPU drivers are compatible with (run nvidia-smi)
+  # - gputil>=1.4.0
   ## done
 
   # meltingpot deps
   - absl-py>=2.1.0
   - chex>=0.1.85
   - dm-env>=1.6
+  - dm-tree
   - immutabledict>=4.1.0
   - ml-collections>=0.1.1
   - networkx>=3.2.1
   - numpy>=1.26.3
+  - opencv<4.7
+  - pandas>=2.2.0
   - pygame>=2.5.2
   - reactivex>=4.0.4
 
   # reward_transfer deps
-  - pandas>=2.2.0
   - ray-rllib==2.10.0
   - optuna>=3.5.0
+  # - pandas
 
   # optionals
   - jupyterlab>=4.0.12
   - matplotlib
-  - opencv>=4.9.0  # for competition
 
   # dev packages
   - autoflake>=1.7.5

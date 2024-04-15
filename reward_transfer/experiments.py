@@ -55,7 +55,7 @@ if __name__ == "__main__":
       "--framework",
       type=str,
       required=True,
-      choice=["torch", "tf", "tf2"],
+      choices=["torch", "tf", "tf2"],
       help="which deep learning framework to use")
   parser.add_argument(
       "--num_cpus", type=int, required=True, help="number of CPUs to use")
