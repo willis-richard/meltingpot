@@ -3,6 +3,7 @@
 
 import argparse
 from collections import defaultdict
+import os
 from typing import Dict
 
 from meltingpot import substrate
@@ -10,6 +11,7 @@ from ml_collections.config_dict import ConfigDict
 import ray
 from ray import tune
 from ray.air import CheckpointConfig
+from ray.air.integrations.wandb import WandbLoggerCallback
 from ray.rllib.algorithms.ppo import PPOConfig
 from ray.rllib.policy.policy import PolicySpec
 from ray.tune.registry import register_env
@@ -29,7 +31,7 @@ KEEP_CHECKPOINTS_NUM = 1  # Default None
 CHECKPOINT_FREQ = 50  # Default 0
 
 NUM_ENVS_PER_WORKER = 1
-SGD_MINIBATCH_SIZE = 250  # 256 = minimum for efficient CPU training
+SGD_MINIBATCH_SIZE = 30000
 LR = 2e-4
 VF_CLIP_PARAM = 2.0
 NUM_SGD_ITER = 10
@@ -186,12 +188,11 @@ if __name__ == "__main__":
   config = PPOConfig().training(
       model=DEFAULT_MODEL,
       train_batch_size=train_batch_size,
-      # sgd_minibatch_size=min(SGD_MINIBATCH_SIZE, train_batch_size),
-      sgd_minibatch_size=tune.grid_search([250, 5000]),
+      sgd_minibatch_size=min(SGD_MINIBATCH_SIZE, train_batch_size),
       num_sgd_iter=NUM_SGD_ITER,
       # lr=LR,
       # lr=tune.loguniform(1e-5, 5e-4),
-      lr=tune.grid_search([1e-5, 7e-5, 5e-4]),
+      lr=tune.grid_search([3e-5, 2e-4, 1e-3]),
       # lambda_=0.80,
       # lambda_=tune.uniform(0.5, 1),
       lambda_=tune.grid_search([0.5, 1]),
@@ -224,7 +225,6 @@ if __name__ == "__main__":
       log_level=LOGGING_LEVEL,
   ).resources(
       num_gpus=args.num_gpus / parallelism,
-      num_gpus_per_learner_worker=args.num_gpus / parallelism,
   ).framework(
       framework=args.framework,
   ).reporting(
@@ -250,7 +250,8 @@ if __name__ == "__main__":
   # MyCallbacks.set_transfer_map = {"default": 0.5}
   # for role in unique_roles:
   #   MyCallbacks.transfer_map[role] = 0.5
-  config = config.callbacks(MyCallbacks)
+
+  # config = config.callbacks(MyCallbacks)
 
   checkpoint_config = CheckpointConfig(
       num_to_keep=KEEP_CHECKPOINTS_NUM,
@@ -286,6 +287,13 @@ if __name__ == "__main__":
     checkpoint_config=checkpoint_config,
     verbose=VERBOSE,
     log_to_file=False,
+    callbacks=[
+      MyCallbacks,
+      WandbLoggerCallback(
+        project="meltingpot",
+        api_key=os.environ["WANDB_API_KEY"],
+        log_config=True
+    )],
     max_concurrent_trials=args.max_concurrent_trials,
     resume=args.resume,
   )
