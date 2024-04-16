@@ -19,7 +19,7 @@ from ray.tune.schedulers import ASHAScheduler
 from ray.tune.search.optuna import OptunaSearch
 
 from examples.rllib import utils
-from reward_transfer.callbacks import MyCallbacks
+from reward_transfer.callbacks import make_my_callbacks
 
 # Use Tuner.fit() to gridsearch over exchange values
 # Thus I need to stick a custom parameter in the config and hope I can access this in the callback
@@ -96,6 +96,10 @@ if __name__ == "__main__":
       "--resume",
       action="store_true",
       help="Resume the last trial with name/local_dir")
+  parser.add_argument(
+      "--wandb",
+      action="store_true",
+      help="Push results to wandb")
   args = parser.parse_args()
 
   ray.init(
@@ -239,16 +243,9 @@ if __name__ == "__main__":
     _disable_preprocessor_api=False
   )
 
-  # each worker will get its own copy of MyCallbacks
-  # and careful about setting the value of a mutable class member
-
-  # TODO: don't use a class method to set the transfer map. Also, is it a mutable issue?
-  # Can construct a dict from a tuple of stuff.
-  # MyCallbacks.set_transfer_map = {"default": 0.5}
-  # for role in unique_roles:
-  #   MyCallbacks.transfer_map[role] = 0.5
-
-  config = config.callbacks(MyCallbacks)
+  transfer_map = {"default": 0.4}
+  my_callbacks = make_my_callbacks(transfer_map, False)
+  config = config.callbacks(my_callbacks)
 
   checkpoint_config = CheckpointConfig(
       num_to_keep=KEEP_CHECKPOINTS_NUM,
@@ -270,11 +267,17 @@ if __name__ == "__main__":
       mode='max',
   )
 
+  callbacks = [WandbLoggerCallback(
+    project="meltingpot",
+    api_key=os.environ["WANDB_API_KEY"],
+    log_config=True
+  )] if args.wandb else None
+
   experiment = tune.run(
     run_or_experiment="PPO",
     name=args.substrate,
-    # metric="episode_reward_mean",
-    # mode="max",
+    metric="episode_reward_mean",
+    mode="max",
     stop={"training_iteration": args.n_iterations},
     config=config,
     num_samples=args.num_samples,
@@ -284,11 +287,7 @@ if __name__ == "__main__":
     checkpoint_config=checkpoint_config,
     verbose=VERBOSE,
     log_to_file=False,
-    callbacks=[WandbLoggerCallback(
-      project="meltingpot",
-      api_key=os.environ["WANDB_API_KEY"],
-      log_config=True
-    )],
+    callbacks=callbacks,
     max_concurrent_trials=args.max_concurrent_trials,
     resume=args.resume,
   )
