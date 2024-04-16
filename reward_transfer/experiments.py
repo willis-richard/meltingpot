@@ -1,6 +1,5 @@
 """Run experiments"""
 
-
 import argparse
 from collections import defaultdict
 import os
@@ -33,9 +32,9 @@ CHECKPOINT_FREQ = 50  # Default 0
 SGD_MINIBATCH_SIZE = 15000
 LR = 2e-4
 VF_CLIP_PARAM = 2.0
-NUM_SGD_ITER = 10
+NUM_SGD_ITER = 15
 EXPLORE_EVAL = False
-ENTROPY_COEFF = 0.003
+ENTROPY_COEFF = 0.0003
 # TODO: Fix evaluation at end of training
 EVAL_DURATION = 80
 
@@ -46,7 +45,8 @@ if __name__ == "__main__":
       "--substrate",
       type=str,
       required=True,
-      help="Which substrate to train on. e.g. 'coins' or 'allelopathic_harvest__open'.")
+      help="Which substrate to train on. e.g. 'coins' or 'allelopathic_harvest__open'."
+  )
   parser.add_argument(
       "--n_iterations",
       type=int,
@@ -78,10 +78,7 @@ if __name__ == "__main__":
       required=True,
       help="Number of rollout workers, should be in [0,num_cpus]")
   parser.add_argument(
-      "--num_samples",
-      type=int,
-      default=1,
-      help="Number of samples to run")
+      "--num_samples", type=int, default=1, help="Number of samples to run")
   parser.add_argument(
       "--envs_per_worker",
       type=int,
@@ -97,9 +94,7 @@ if __name__ == "__main__":
       action="store_true",
       help="Resume the last trial with name/local_dir")
   parser.add_argument(
-      "--wandb",
-      action="store_true",
-      help="Push results to wandb")
+      "--wandb", action="store_true", help="Push results to wandb")
   args = parser.parse_args()
 
   ray.init(
@@ -124,7 +119,8 @@ if __name__ == "__main__":
     # 2. call build
   import importlib
 
-  env_module = importlib.import_module(f"meltingpot.configs.substrates.{args.substrate}")
+  env_module = importlib.import_module(
+      f"meltingpot.configs.substrates.{args.substrate}")
   substrate_definition = env_module.build(player_roles, substrate_config)
   horizon = substrate_definition["maxEpisodeLengthFrames"]
   sprite_size = substrate_definition["spriteSize"]
@@ -153,16 +149,13 @@ if __name__ == "__main__":
     policies[role] = PolicySpec(
         observation_space=base_env.observation_space[f"player_{i}"],
         action_space=base_env.action_space[f"player_{i}"],
-        config={
-        })
+        config={})
 
   if sprite_size == 8:
-    conv_filters = [[16, [8, 8], 8],
-                    [32, [4, 4], 1],
+    conv_filters = [[16, [8, 8], 8], [32, [4, 4], 1],
                     [64, [sprite_x // sprite_size, sprite_y // sprite_size], 1]]
   elif sprite_size == 1:
-    conv_filters = [[16, [3, 3], 1],
-                    [32, [3, 3], 1],
+    conv_filters = [[16, [3, 3], 1], [32, [3, 3], 1],
                     [64, [sprite_x, sprite_y], 1]]
   else:
     assert False, "Unknown sprite_size of {sprite_size}"
@@ -183,8 +176,8 @@ if __name__ == "__main__":
   parallelism = max(1, args.num_cpus // (1 + args.rollout_workers))
 
   # TODO: Get maxEpisodeLengthFrames from substrate definition
-  train_batch_size = max(
-      1, args.rollout_workers) * args.envs_per_worker * horizon
+  train_batch_size = max(1,
+                         args.rollout_workers) * args.envs_per_worker * horizon
 
   config = PPOConfig().training(
       model=DEFAULT_MODEL,
@@ -192,22 +185,22 @@ if __name__ == "__main__":
       sgd_minibatch_size=min(SGD_MINIBATCH_SIZE, train_batch_size),
       num_sgd_iter=NUM_SGD_ITER,
       # lr=LR,
-      # lr=tune.loguniform(1e-5, 5e-4),
-      lr=tune.grid_search([3e-5, 2e-4, 1e-3]),
+      lr=tune.loguniform(1e-5, 1e-3),
+      # lr=tune.grid_search([3e-5, 2e-4, 1e-3]),
       # lambda_=0.80,
-      # lambda_=tune.uniform(0.5, 1),
-      lambda_=tune.grid_search([0.5, 1]),
+      lambda_=tune.uniform(0.5, 1),
+      # lambda_=tune.grid_search([0.5, 1]),
       # vf_loss_coeff=0.5,
-      # vf_loss_coeff=tune.uniform(0.2, 1),
-      vf_loss_coeff=tune.grid_search([0.4, 0.8]),
+      vf_loss_coeff=tune.uniform(0.2, 1),
+      # vf_loss_coeff=tune.grid_search([0.4, 0.8]),
       entropy_coeff=ENTROPY_COEFF,
       # entropy_coeff=tune.loguniform(3e-4, 3e-2),
       # clip_param=0.2,
-      # clip_param=tune.uniform(0.2, 0.4),
-      clip_param=tune.grid_search([0.2, 0.4]),
+      clip_param=tune.uniform(0.2, 0.4),
+      # clip_param=tune.grid_search([0.2, 0.4]),
       # vf_clip_param=VF_CLIP_PARAM,
-      # vf_clip_param=tune.uniform(1, 20),
-      vf_clip_param=tune.grid_search([1, 20]),
+      vf_clip_param=tune.loguniform(1, 20),
+      # vf_clip_param=tune.grid_search([1, 20]),
   ).rollouts(
       batch_mode="complete_episodes",
       num_rollout_workers=args.rollout_workers,
@@ -237,11 +230,10 @@ if __name__ == "__main__":
       },
       evaluation_duration=EVAL_DURATION,
   ).experimental(
-    # will be set to true in future versions of Ray, was True in baselines
-    # I don't know how to get this to work though - and I can't use the baselines
-    # policy wrapper either without it
-    _disable_preprocessor_api=False
-  )
+      # will be set to true in future versions of Ray, was True in baselines
+      # I don't know how to get this to work though - and I can't use the baselines
+      # policy wrapper either without it
+      _disable_preprocessor_api=False)
 
   transfer_map = {"default": 0.4}
   my_callbacks = make_my_callbacks(transfer_map, False)
@@ -257,39 +249,45 @@ if __name__ == "__main__":
       metric='episode_reward_mean',
       mode='max',
       max_t=args.n_iterations,
-      grace_period=max(1, args.n_iterations//4),
+      grace_period=max(1, args.n_iterations // 2),
       reduction_factor=2,
       brackets=1,
   )
 
   optuna_search = OptunaSearch(
-      metric='episode_reward_mean',
-      mode='max',
-  )
+    metric='episode_reward_mean',
+    mode='max',
+    points_to_evaluate=[
+      {"clip_param": 0.4, "lambda": 1, "lr": 0.0002, "vf_clip_param": 20, "vf_loss_coeff": 0.4},
+      {"clip_param": 0.2, "lambda": 0.5, "lr": 0.0002, "vf_clip_param": 20, "vf_loss_coeff": 0.4},
+      {"clip_param": 0.4, "lambda": 0.5, "lr": 0.001, "vf_clip_param": 1, "vf_loss_coeff": 0.8},
+      {"clip_param": 0.4, "lambda": 1, "lr": 0.001, "vf_clip_param": 20, "vf_loss_coeff": 0.8},
+    ])
 
-  callbacks = [WandbLoggerCallback(
-    project="meltingpot",
-    api_key=os.environ["WANDB_API_KEY"],
-    log_config=True
-  )] if args.wandb else None
+  callbacks = [
+      WandbLoggerCallback(
+          project="meltingpot",
+          api_key=os.environ["WANDB_API_KEY"],
+          log_config=True)
+  ] if args.wandb else None
 
   experiment = tune.run(
-    run_or_experiment="PPO",
-    name=args.substrate,
-    metric="episode_reward_mean",
-    mode="max",
-    stop={"training_iteration": args.n_iterations},
-    config=config,
-    num_samples=args.num_samples,
-    storage_path=args.local_dir,
-    # search_alg=optuna_search,
-    # scheduler=asha_scheduler,
-    checkpoint_config=checkpoint_config,
-    verbose=VERBOSE,
-    log_to_file=False,
-    callbacks=callbacks,
-    max_concurrent_trials=args.max_concurrent_trials,
-    resume=args.resume,
+      run_or_experiment="PPO",
+      name=args.substrate,
+      # metric="episode_reward_mean",
+      # mode="max",
+      stop={"training_iteration": args.n_iterations},
+      config=config,
+      num_samples=args.num_samples,
+      storage_path=args.local_dir,
+      search_alg=optuna_search,
+      scheduler=asha_scheduler,
+      checkpoint_config=checkpoint_config,
+      verbose=VERBOSE,
+      log_to_file=False,
+      callbacks=callbacks,
+      max_concurrent_trials=args.max_concurrent_trials,
+      resume=args.resume,
   )
 
   # run_config = RunConfig(
