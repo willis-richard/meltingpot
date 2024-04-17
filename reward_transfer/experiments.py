@@ -85,6 +85,11 @@ if __name__ == "__main__":
       default=1,
       help="Number of episodes each worker runs in parallel")
   parser.add_argument(
+      "--episodes_per_worker",
+      type=int,
+      default=1,
+      help="Number of episodes per each worker in a training batch (not including parallelism)")
+  parser.add_argument(
       "--max_concurrent_trials",
       type=int,
       default=None,
@@ -177,23 +182,23 @@ if __name__ == "__main__":
 
   # TODO: Get maxEpisodeLengthFrames from substrate definition
   train_batch_size = max(1,
-                         args.rollout_workers) * args.envs_per_worker * horizon
+                         args.rollout_workers) * args.envs_per_worker * horizon * args.episodes_per_worker
 
   config = PPOConfig().training(
       model=DEFAULT_MODEL,
       train_batch_size=train_batch_size,
-      sgd_minibatch_size=min(SGD_MINIBATCH_SIZE, train_batch_size),
-      # sgd_minibatch_size=tune.qlograndint(5000, 30000, 5000),
+      # sgd_minibatch_size=min(SGD_MINIBATCH_SIZE, train_batch_size),
+      sgd_minibatch_size=tune.qlograndint(5000, 30000, 5000),
       # num_sgd_iter=NUM_SGD_ITER,
       num_sgd_iter=tune.qlograndint(3, 30, 1),
       # lr=LR,
-      lr=tune.qloguniform(1e-5, 1e-3, 5e-6),
+      lr=tune.qloguniform(1e-5, 1e-3, 1e-5),
       # lambda_=0.80,
       lambda_=tune.quniform(0.8, 1.0, 0.05),
       # vf_loss_coeff=0.5,
       vf_loss_coeff=tune.quniform(0.3, 1, 0.1),
       # entropy_coeff=ENTROPY_COEFF,
-      entropy_coeff=tune.qloguniform(3e-4, 3e-2, 5e-5),
+      entropy_coeff=tune.qloguniform(1e-4, 5e-2, 1e-4),
       # clip_param=0.2,
       clip_param=tune.quniform(0.05, 0.5, 0.05),
       # vf_clip_param=VF_CLIP_PARAM,
@@ -232,13 +237,14 @@ if __name__ == "__main__":
       # policy wrapper either without it
       _disable_preprocessor_api=False)
 
-  transfer_map = {"default": 0.24}
-  my_callbacks = make_my_callbacks(transfer_map, False)
-  config = config.callbacks(my_callbacks)
+  if args.substrate != "clean_up_simple_single":
+    transfer_map = {"default": 0.24}
+    my_callbacks = make_my_callbacks(transfer_map, False)
+    config = config.callbacks(my_callbacks)
 
   checkpoint_config = CheckpointConfig(
       num_to_keep=KEEP_CHECKPOINTS_NUM,
-      checkpoint_frequency=CHECKPOINT_FREQ,
+    checkpoint_frequency=CHECKPOINT_FREQ,
       checkpoint_at_end=True)
 
   asha_scheduler = ASHAScheduler(
@@ -260,8 +266,8 @@ if __name__ == "__main__":
       attributes = ["sgd_minibatch_size", "num_sgd_iter", "lr", "lambda",
                     "vf_loss_coeff", "entropy_coeff", "clip_param",
                     "vf_clip_param"]
-      attribute_str = ','.join([str(trial.config[a]) for a in attributes])
-      return f"{trial.trainable_name}_{trial.trial_id}_{attribute_str}"
+      attributes_str = [f"{trial.config[a]:.5f}".rstrip("0").rstrip(".") for a in attributes]
+      return f"{trial.trainable_name}_{trial.trial_id}_{','.join(attributes_str)}"
 
   callbacks = [
       WandbLoggerCallback(
