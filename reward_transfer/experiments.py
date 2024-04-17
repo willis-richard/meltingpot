@@ -183,24 +183,21 @@ if __name__ == "__main__":
       model=DEFAULT_MODEL,
       train_batch_size=train_batch_size,
       sgd_minibatch_size=min(SGD_MINIBATCH_SIZE, train_batch_size),
-      num_sgd_iter=NUM_SGD_ITER,
+      # sgd_minibatch_size=tune.qlograndint(5000, 30000, 5000),
+      # num_sgd_iter=NUM_SGD_ITER,
+      num_sgd_iter=tune.qlograndint(3, 30, 1),
       # lr=LR,
-      lr=tune.loguniform(1e-5, 1e-3),
-      # lr=tune.grid_search([3e-5, 2e-4, 1e-3]),
+      lr=tune.qloguniform(1e-5, 1e-3, 5e-6),
       # lambda_=0.80,
-      lambda_=tune.uniform(0.5, 1),
-      # lambda_=tune.grid_search([0.5, 1]),
+      lambda_=tune.quniform(0.8, 1.0, 0.05),
       # vf_loss_coeff=0.5,
-      vf_loss_coeff=tune.uniform(0.2, 1),
-      # vf_loss_coeff=tune.grid_search([0.4, 0.8]),
-      entropy_coeff=ENTROPY_COEFF,
-      # entropy_coeff=tune.loguniform(3e-4, 3e-2),
+      vf_loss_coeff=tune.quniform(0.3, 1, 0.1),
+      # entropy_coeff=ENTROPY_COEFF,
+      entropy_coeff=tune.qloguniform(3e-4, 3e-2, 5e-5),
       # clip_param=0.2,
-      clip_param=tune.uniform(0.2, 0.4),
-      # clip_param=tune.grid_search([0.2, 0.4]),
+      clip_param=tune.quniform(0.05, 0.5, 0.05),
       # vf_clip_param=VF_CLIP_PARAM,
-      vf_clip_param=tune.loguniform(1, 20),
-      # vf_clip_param=tune.grid_search([1, 20]),
+      vf_clip_param=tune.qlograndint(1, 20, 1),
   ).rollouts(
       batch_mode="complete_episodes",
       num_rollout_workers=args.rollout_workers,
@@ -235,7 +232,7 @@ if __name__ == "__main__":
       # policy wrapper either without it
       _disable_preprocessor_api=False)
 
-  transfer_map = {"default": 0.4}
+  transfer_map = {"default": 0.24}
   my_callbacks = make_my_callbacks(transfer_map, False)
   config = config.callbacks(my_callbacks)
 
@@ -256,19 +253,21 @@ if __name__ == "__main__":
 
   optuna_search = OptunaSearch(
     metric='episode_reward_mean',
-    mode='max',
-    points_to_evaluate=[
-      {"clip_param": 0.4, "lambda": 1, "lr": 0.0002, "vf_clip_param": 20, "vf_loss_coeff": 0.4},
-      {"clip_param": 0.2, "lambda": 0.5, "lr": 0.0002, "vf_clip_param": 20, "vf_loss_coeff": 0.4},
-      {"clip_param": 0.4, "lambda": 0.5, "lr": 0.001, "vf_clip_param": 1, "vf_loss_coeff": 0.8},
-      {"clip_param": 0.4, "lambda": 1, "lr": 0.001, "vf_clip_param": 20, "vf_loss_coeff": 0.8},
-    ])
+    mode='max')
+
+  def trial_name_string(trial: ray.tune.experiment.Trial):
+      """Create a custom name that includes hyperparameters."""
+      attributes = ["sgd_minibatch_size", "num_sgd_iter", "lr", "lambda",
+                    "vf_loss_coeff", "entropy_coeff", "clip_param",
+                    "vf_clip_param"]
+      attribute_str = ','.join([str(trial.config[a]) for a in attributes])
+      return f"{trial.trainable_name}_{trial.trial_id}_{attribute_str}"
 
   callbacks = [
       WandbLoggerCallback(
           project="meltingpot",
           api_key=os.environ["WANDB_API_KEY"],
-          log_config=True)
+          log_config=False)
   ] if args.wandb else None
 
   experiment = tune.run(
@@ -284,6 +283,7 @@ if __name__ == "__main__":
       scheduler=asha_scheduler,
       checkpoint_config=checkpoint_config,
       verbose=VERBOSE,
+      trial_name_creator=trial_name_string,
       log_to_file=False,
       callbacks=callbacks,
       max_concurrent_trials=args.max_concurrent_trials,
