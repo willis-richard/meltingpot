@@ -59,7 +59,7 @@ ASCII_MAP = """
 @RRRRRR     BBBBB@
 @HHHHHH      BBBB@
 @RRRRRR     BBBBB@
-@RRRRR  P    BBBB@
+@HHHHH  P    BBBB@
 @RRRRR    P BBBBB@
 @HHHHH       BBBB@
 @RRRRR      BBBBB@
@@ -273,7 +273,7 @@ POTENTIAL_APPLE = {
             "component": "AppleGrow",
             "kwargs": {
                 "maxAppleGrowthRate": 0.012,
-                "thresholdDepletion": 0.4,
+                "thresholdDepletion": 0.5,
                 "thresholdRestoration": 0.0,
             }
         }
@@ -412,7 +412,7 @@ def create_scene():
               "component": "DirtSpawnerCapped",
               "kwargs": {
                   "dirtSpawnProbability": 0.10,
-                  "threshold": 0.4,
+                  "threshold": 0.5,
               },
           },
           {
