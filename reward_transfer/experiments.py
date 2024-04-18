@@ -2,6 +2,7 @@
 
 import argparse
 from collections import defaultdict
+import importlib
 import os
 from typing import Dict
 
@@ -12,6 +13,7 @@ from ray import tune
 from ray.air import CheckpointConfig
 from ray.air.integrations.wandb import WandbLoggerCallback
 from ray.rllib.algorithms.ppo import PPOConfig
+from ray.rllib.examples.policy.random_policy import RandomPolicy
 from ray.rllib.policy.policy import PolicySpec
 from ray.tune.registry import register_env
 from ray.tune.schedulers import ASHAScheduler
@@ -111,30 +113,18 @@ if __name__ == "__main__":
 
   register_env("meltingpot", utils.env_creator)
 
-  # TODO: Fix if multiple roles
-
   substrate_config = substrate.get_config(args.substrate)
   player_roles = substrate_config.default_player_roles
   num_players = len(player_roles)
-  unique_roles: Dict[str, list] = defaultdict(list)
-  for i, role in enumerate(player_roles):
-    unique_roles[role].append(f"player_{i}")
 
-    # 1. import the module.
-    # 2. call build
-  import importlib
-
+  # 1. import the module.
+  # 2. call build
   env_module = importlib.import_module(
       f"meltingpot.configs.substrates.{args.substrate}")
   substrate_definition = env_module.build(player_roles, substrate_config)
+
   horizon = substrate_definition["maxEpisodeLengthFrames"]
   sprite_size = substrate_definition["spriteSize"]
-
-  def policy_mapping_fn(aid, *args, **kwargs):
-    for role, pids in unique_roles.items():
-      if aid in pids:
-        return role
-    assert False
 
   # TODO: SPRITE_SIZE
   env_config = ConfigDict({
@@ -145,16 +135,38 @@ if __name__ == "__main__":
   })
 
   base_env = utils.env_creator(env_config)
-  policies = {}
-  for i, role in enumerate(unique_roles):
-    rgb_shape = base_env.observation_space[f"player_{i}"]["RGB"].shape
-    sprite_x = rgb_shape[0]
-    sprite_y = rgb_shape[1]
 
-    policies[role] = PolicySpec(
-        observation_space=base_env.observation_space[f"player_{i}"],
-        action_space=base_env.action_space[f"player_{i}"],
-        config={})
+  unique_roles: Dict[str, list] = defaultdict(list)
+  for i, (role, pid) in enumerate(zip(player_roles, base_env._ordered_agent_ids)):
+    unique_roles[role].append(pid)
+
+  policies = {}
+  for role in unique_roles:
+    policies[role] = PolicySpec()
+        # observation_space=base_env.observation_space[f"player_{i}"],
+        # action_space=base_env.action_space[f"player_{i}"],
+        # config={})
+
+  if args.substrate == "clean_up_simple_single":
+    policies["random"] = PolicySpec(RandomPolicy)
+
+    def policy_mapping_fn(aid, episode, **kwargs):
+      # One random player is the agent, the others are random policies
+      if episode.episode_id % num_players == int(aid[-1]):
+        return "default"
+      else:
+        return "random"
+
+  else:
+    def policy_mapping_fn(aid, **kwargs):
+      for role, pids in unique_roles.items():
+        if aid in pids:
+          return role
+      assert False, f"Agent id {aid} not found in unique roles {unique_roles}"
+
+  rgb_shape = base_env.observation_space["player_0"]["RGB"].shape
+  sprite_x = rgb_shape[0]
+  sprite_y = rgb_shape[1]
 
   if sprite_size == 8:
     conv_filters = [[16, [8, 8], 8], [32, [4, 4], 1],
@@ -180,15 +192,14 @@ if __name__ == "__main__":
 
   parallelism = max(1, args.num_cpus // (1 + args.rollout_workers))
 
-  # TODO: Get maxEpisodeLengthFrames from substrate definition
   train_batch_size = max(1,
                          args.rollout_workers) * args.envs_per_worker * horizon * args.episodes_per_worker
 
   config = PPOConfig().training(
       model=DEFAULT_MODEL,
       train_batch_size=train_batch_size,
-      # sgd_minibatch_size=min(SGD_MINIBATCH_SIZE, train_batch_size),
-      sgd_minibatch_size=tune.qlograndint(5000, 30000, 5000),
+      sgd_minibatch_size=min(SGD_MINIBATCH_SIZE, train_batch_size),
+      # sgd_minibatch_size=tune.qlograndint(5000, 30000, 5000),
       # num_sgd_iter=NUM_SGD_ITER,
       num_sgd_iter=tune.qlograndint(3, 30, 1),
       # lr=LR,
@@ -211,6 +222,8 @@ if __name__ == "__main__":
   ).multi_agent(
       policies=policies,
       policy_mapping_fn=policy_mapping_fn,
+      policies_to_train=list(unique_roles.keys()),
+      count_steps_by="env_steps",
   ).fault_tolerance(
       recreate_failed_workers=True,
       num_consecutive_worker_failures_tolerance=3,
@@ -238,8 +251,7 @@ if __name__ == "__main__":
       _disable_preprocessor_api=False)
 
   if args.substrate != "clean_up_simple_single":
-    transfer_map = {"default": 0.24}
-    my_callbacks = make_my_callbacks(transfer_map, False)
+    my_callbacks = make_my_callbacks(transfer_map={"default": 0.24}, log=False)
     config = config.callbacks(my_callbacks)
 
   checkpoint_config = CheckpointConfig(

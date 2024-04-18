@@ -136,12 +136,10 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
     })
 
 
-def env_creator(env_config: ConfigDict):
+def env_creator(env_config: ConfigDict) -> MeltingPotEnv:
   """Outputs an environment for registering."""
   substrate_config = env_config["substrate_config"]
   env = substrate.build_from_config(substrate_config, roles=env_config["roles"])
-  # env = substrate.build_from_config(env_config, roles=env_config["roles"])
-  # env = substrate.build(env_config['substrate'], roles=env_config['roles'])
   env = MeltingPotEnv(env, substrate_config["individual_observation_names"])
   return env
 
