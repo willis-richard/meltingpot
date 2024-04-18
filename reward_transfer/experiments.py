@@ -28,13 +28,10 @@ from reward_transfer.callbacks import make_my_callbacks
 
 LOGGING_LEVEL = "WARN"
 VERBOSE = 1
-KEEP_CHECKPOINTS_NUM = 1  # Default None
-CHECKPOINT_FREQ = 50  # Default 0
+KEEP_CHECKPOINTS_NUM = None  # Default None
+CHECKPOINT_FREQ = 0  # Default 0
 
 SGD_MINIBATCH_SIZE = 15000
-LR = 2e-4
-VF_CLIP_PARAM = 2.0
-NUM_SGD_ITER = 15
 EXPLORE_EVAL = False
 ENTROPY_COEFF = 0.0003
 # TODO: Fix evaluation at end of training
@@ -198,21 +195,21 @@ if __name__ == "__main__":
   config = PPOConfig().training(
       model=DEFAULT_MODEL,
       train_batch_size=train_batch_size,
-      sgd_minibatch_size=min(SGD_MINIBATCH_SIZE, train_batch_size),
-      # sgd_minibatch_size=tune.qlograndint(5000, 30000, 5000),
-      # num_sgd_iter=NUM_SGD_ITER,
+      # sgd_minibatch_size=1000,
+      sgd_minibatch_size=tune.qlograndint(5000, 30000, 5000),
+      # num_sgd_iter=15,
       num_sgd_iter=tune.qlograndint(3, 30, 1),
-      # lr=LR,
+      # lr=2e-4,
       lr=tune.qloguniform(1e-5, 1e-3, 1e-5),
-      # lambda_=0.80,
-      lambda_=tune.quniform(0.8, 1.0, 0.05),
-      # vf_loss_coeff=0.5,
-      vf_loss_coeff=tune.quniform(0.3, 1, 0.1),
-      # entropy_coeff=ENTROPY_COEFF,
-      entropy_coeff=tune.qloguniform(1e-4, 5e-2, 1e-4),
-      # clip_param=0.2,
-      clip_param=tune.quniform(0.05, 0.5, 0.05),
-      # vf_clip_param=VF_CLIP_PARAM,
+      # lambda_=1.0,
+      lambda_=tune.quniform(0.9, 1.0, 0.05),
+      # vf_loss_coeff=0.8,
+      vf_loss_coeff=tune.quniform(0.5, 1, 0.1),
+      # entropy_coeff=3e-4,
+      entropy_coeff=tune.qloguniform(1e-4, 1e-3, 1e-4),
+      # clip_param=0.4,
+      clip_param=tune.quniform(0.1, 0.5, 0.05),
+      # vf_clip_param=5,
       vf_clip_param=tune.qlograndint(1, 20, 1),
   ).rollouts(
       batch_mode="complete_episodes",

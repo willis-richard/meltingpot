@@ -644,7 +644,7 @@ def get_config():
 
   # The roles assigned to each player.
   config.valid_roles = frozenset({"default"})
-  config.default_player_roles = ("default",) * 5
+  config.default_player_roles = ("default",) * 1
 
   return config
 
