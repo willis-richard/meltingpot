@@ -94,11 +94,14 @@ if __name__ == "__main__":
       default=None,
       help="maximum number of concurrent trials to run")
   parser.add_argument(
+      "--wandb",
+      type=str,
+      default=None,
+      help="wandb project name")
+  parser.add_argument(
       "--resume",
       action="store_true",
       help="Resume the last trial with name/local_dir")
-  parser.add_argument(
-      "--wandb", action="store_true", help="Push results to wandb")
   args = parser.parse_args()
 
   ray.init(
@@ -280,10 +283,10 @@ if __name__ == "__main__":
 
   callbacks = [
       WandbLoggerCallback(
-          project="meltingpot",
+          project=args.wandb,
           api_key=os.environ["WANDB_API_KEY"],
           log_config=False)
-  ] if args.wandb else None
+  ] if args.wandb is not None else None
 
   experiment = tune.run(
       run_or_experiment="PPO",
