@@ -199,7 +199,7 @@ if __name__ == "__main__":
       model=DEFAULT_MODEL,
       train_batch_size=train_batch_size,
       # sgd_minibatch_size=1000,
-      sgd_minibatch_size=tune.qlograndint(5000, 30000, 5000),
+      sgd_minibatch_size=tune.qrandint(5000, 30000, 5000),
       # num_sgd_iter=15,
       num_sgd_iter=tune.qlograndint(3, 30, 1),
       # lr=2e-4,
