@@ -29,3 +29,5 @@ __pycache__/
 /meltingpot/assets/
 /reward_transfer/results/
 /results/
+
+.virtual_documents

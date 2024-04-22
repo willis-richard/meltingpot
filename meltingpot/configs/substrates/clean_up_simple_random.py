@@ -272,8 +272,8 @@ POTENTIAL_APPLE = {
         {
             "component": "AppleGrow",
             "kwargs": {
-                "maxAppleGrowthRate": 0.012,
-                "thresholdDepletion": 0.5,
+                "maxAppleGrowthRate": 0.024,
+                "thresholdDepletion": 0.4,
                 "thresholdRestoration": 0.0,
             }
         }
@@ -411,8 +411,8 @@ def create_scene():
           {
               "component": "DirtSpawnerCapped",
               "kwargs": {
-                  "dirtSpawnProbability": 0.10,
-                  "threshold": 0.5,
+                  "dirtSpawnProbability": 0.20,
+                  "threshold": 0.4,
               },
           },
           {
@@ -643,8 +643,8 @@ def get_config():
   })
 
   # The roles assigned to each player.
-  config.valid_roles = frozenset({"default"})
-  config.default_player_roles = ("default",) * 1
+  config.valid_roles = frozenset({"default", "random"})
+  config.default_player_roles = ("default",) * 1 + ("random",) * 4
 
   return config
 

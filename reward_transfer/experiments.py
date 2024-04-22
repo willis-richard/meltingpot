@@ -141,13 +141,9 @@ if __name__ == "__main__":
     unique_roles[role].append(pid)
 
   policies = {}
-  for role in unique_roles:
-    policies[role] = PolicySpec()
-        # observation_space=base_env.observation_space[f"player_{i}"],
-        # action_space=base_env.action_space[f"player_{i}"],
-        # config={})
 
-  if args.substrate == "clean_up_simple_single":
+  if args.substrate == "clean_up_simple_random":
+    policies["default"] = PolicySpec()
     policies["random"] = PolicySpec(RandomPolicy)
 
     def policy_mapping_fn(aid, episode, **kwargs):
@@ -157,12 +153,19 @@ if __name__ == "__main__":
       else:
         return "random"
 
+    policies_to_train = ["default"]
+
   else:
+    for role in unique_roles:
+      policies[role] = PolicySpec()
+
     def policy_mapping_fn(aid, **kwargs):
       for role, pids in unique_roles.items():
         if aid in pids:
           return role
       assert False, f"Agent id {aid} not found in unique roles {unique_roles}"
+
+    policies_to_train = list(unique_roles.keys())
 
   rgb_shape = base_env.observation_space["player_0"]["RGB"].shape
   sprite_x = rgb_shape[0]
@@ -222,7 +225,7 @@ if __name__ == "__main__":
   ).multi_agent(
       policies=policies,
       policy_mapping_fn=policy_mapping_fn,
-      policies_to_train=list(unique_roles.keys()),
+      policies_to_train=policies_to_train,
       count_steps_by="env_steps",
   ).fault_tolerance(
       recreate_failed_workers=True,
@@ -250,8 +253,8 @@ if __name__ == "__main__":
       # policy wrapper either without it
       _disable_preprocessor_api=False)
 
-  if args.substrate != "clean_up_simple_single":
-    my_callbacks = make_my_callbacks(transfer_map={"default": 0.24}, log=False)
+  if args.substrate != "clean_up_simple_single" and args.substrate != "clean_up_simple_random":
+    my_callbacks = make_my_callbacks(tm={"default": 0.24}, log=False)
     config = config.callbacks(my_callbacks)
 
   checkpoint_config = CheckpointConfig(
@@ -260,9 +263,9 @@ if __name__ == "__main__":
       checkpoint_at_end=True)
 
   asha_scheduler = ASHAScheduler(
-      time_attr='training_iteration',
-      metric='episode_reward_mean',
-      mode='max',
+      time_attr="training_iteration",
+      metric="episode_reward_mean",
+      mode="max",
       max_t=args.n_iterations,
       grace_period=max(1, args.n_iterations // 2),
       reduction_factor=2,
@@ -270,16 +273,21 @@ if __name__ == "__main__":
   )
 
   optuna_search = OptunaSearch(
-    metric='episode_reward_mean',
-    mode='max')
+    metric="episode_reward_mean",
+    mode="max",
+    points_to_evaluate=[
+      {"sgd_minibatch_size": 20000, "num_sgd_iter": 12, "lr": 0.000126, "lambda": 0.95, "vf_loss_coeff": 0.7, "entropy_coeff": 0.000102, "clip_param": 0.25, "vf_clip_param": 2},
+      {"sgd_minibatch_size": 5000, "num_sgd_iter": 10, "lr": 0.000229, "lambda": 0.90, "vf_loss_coeff": 0.8, "entropy_coeff": 0.000908, "clip_param": 0.25, "vf_clip_param": 6},
+      {"sgd_minibatch_size": 10000, "num_sgd_iter": 13, "lr": 0.000217, "lambda": 0.90, "vf_loss_coeff": 0.7, "entropy_coeff": 0.000315, "clip_param": 0.25, "vf_clip_param": 5},
+    ])
 
   def trial_name_string(trial: ray.tune.experiment.Trial):
-      """Create a custom name that includes hyperparameters."""
-      attributes = ["sgd_minibatch_size", "num_sgd_iter", "lr", "lambda",
-                    "vf_loss_coeff", "entropy_coeff", "clip_param",
-                    "vf_clip_param"]
-      attributes_str = [f"{trial.config[a]:.5f}".rstrip("0").rstrip(".") for a in attributes]
-      return f"{trial.trainable_name}_{trial.trial_id}_{','.join(attributes_str)}"
+    """Create a custom name that includes hyperparameters."""
+    attributes = ["sgd_minibatch_size", "num_sgd_iter", "lr", "lambda",
+                  "vf_loss_coeff", "entropy_coeff", "clip_param",
+                  "vf_clip_param"]
+    attributes_str = [f"{trial.config[a]:.5f}".rstrip("0").rstrip(".") for a in attributes]
+    return f"{trial.trainable_name}_{trial.trial_id}_{','.join(attributes_str)}"
 
   callbacks = [
       WandbLoggerCallback(

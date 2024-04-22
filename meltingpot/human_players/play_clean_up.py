@@ -22,7 +22,7 @@ Use `TAB` to switch between players.
 import argparse
 import json
 
-from meltingpot.configs.substrates import clean_up, clean_up_simple, clean_up_simple_single
+from meltingpot.configs.substrates import clean_up, clean_up_simple, clean_up_simple_single, clean_up_simple_random
 from meltingpot.human_players import level_playing_utils
 from ml_collections import config_dict
 
@@ -30,6 +30,7 @@ environment_configs = {
     'clean_up': clean_up,
     'clean_up_simple': clean_up_simple,
     'clean_up_simple_single': clean_up_simple_single,
+    'clean_up_simple_random': clean_up_simple_random,
 }
 
 _ACTION_MAP = {
