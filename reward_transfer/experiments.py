@@ -102,6 +102,14 @@ if __name__ == "__main__":
       "--resume",
       action="store_true",
       help="Resume the last trial with name/local_dir")
+  parser.add_argument(
+      "--reward_transfer",
+      action="store_true",
+      help="Enable reward transfers")
+  parser.add_argument(
+      "--optimiser",
+      action="store_true",
+      help="Use an optimiser for hyper parameter tuning")
   args = parser.parse_args()
 
   ray.init(
@@ -146,7 +154,7 @@ if __name__ == "__main__":
     policies["default"] = PolicySpec()
     policies["random"] = PolicySpec(RandomPolicy)
 
-    def policy_mapping_fn(aid, episode, **kwargs):
+    def policy_mapping_fn(aid, episode, *args, **kwargs):
       # One random player is the agent, the others are random policies
       if episode.episode_id % num_players == int(aid[-1]):
         return "default"
@@ -159,7 +167,7 @@ if __name__ == "__main__":
     for role in unique_roles:
       policies[role] = PolicySpec()
 
-    def policy_mapping_fn(aid, **kwargs):
+    def policy_mapping_fn(aid, *args, **kwargs):
       for role, pids in unique_roles.items():
         if aid in pids:
           return role
@@ -199,24 +207,8 @@ if __name__ == "__main__":
                          args.rollout_workers) * args.envs_per_worker * horizon * args.episodes_per_worker
 
   config = PPOConfig().training(
-      model=DEFAULT_MODEL,
-      train_batch_size=train_batch_size,
-      # sgd_minibatch_size=1000,
-      sgd_minibatch_size=tune.qrandint(5000, 30000, 5000),
-      # num_sgd_iter=15,
-      num_sgd_iter=tune.qlograndint(3, 30, 1),
-      # lr=2e-4,
-      lr=tune.qloguniform(1e-5, 1e-3, 1e-5),
-      # lambda_=1.0,
-      lambda_=tune.quniform(0.9, 1.0, 0.05),
-      # vf_loss_coeff=0.8,
-      vf_loss_coeff=tune.quniform(0.5, 1, 0.1),
-      # entropy_coeff=3e-4,
-      entropy_coeff=tune.qloguniform(1e-4, 1e-3, 1e-4),
-      # clip_param=0.4,
-      clip_param=tune.quniform(0.1, 0.5, 0.05),
-      # vf_clip_param=5,
-      vf_clip_param=tune.qlograndint(1, 20, 1),
+    model=DEFAULT_MODEL,
+    train_batch_size=train_batch_size,
   ).rollouts(
       batch_mode="complete_episodes",
       num_rollout_workers=args.rollout_workers,
@@ -253,8 +245,9 @@ if __name__ == "__main__":
       # policy wrapper either without it
       _disable_preprocessor_api=False)
 
-  if args.substrate != "clean_up_simple_single" and args.substrate != "clean_up_simple_random":
-    my_callbacks = make_my_callbacks(tm={"default": 0.24}, log=False)
+  if args.reward_transfer:
+    tm = {"default": 0.24}
+    my_callbacks = make_my_callbacks(tm, True)
     config = config.callbacks(my_callbacks)
 
   checkpoint_config = CheckpointConfig(
@@ -262,32 +255,66 @@ if __name__ == "__main__":
     checkpoint_frequency=CHECKPOINT_FREQ,
       checkpoint_at_end=True)
 
-  asha_scheduler = ASHAScheduler(
-      time_attr="training_iteration",
+  if args.optimiser:
+    config = config.training(
+      sgd_minibatch_size=tune.qrandint(5000, 30000, 5000),
+      num_sgd_iter=tune.qlograndint(3, 30, 1),
+      lr=tune.qloguniform(1e-5, 1e-3, 1e-5),
+      lambda_=tune.quniform(0.9, 1.0, 0.05),
+      vf_loss_coeff=tune.quniform(0.5, 1, 0.1),
+      entropy_coeff=tune.qloguniform(1e-4, 1e-3, 1e-4),
+      clip_param=tune.quniform(0.1, 0.5, 0.05),
+      vf_clip_param=tune.qlograndint(1, 20, 1),
+    )
+
+    scheduler = ASHAScheduler(
+        time_attr="training_iteration",
+        metric="episode_reward_mean",
+        mode="max",
+        max_t=args.n_iterations,
+        grace_period=max(1, args.n_iterations // 2),
+        reduction_factor=2,
+        brackets=1,
+    )
+
+    search_alg = OptunaSearch(
       metric="episode_reward_mean",
       mode="max",
-      max_t=args.n_iterations,
-      grace_period=max(1, args.n_iterations // 2),
-      reduction_factor=2,
-      brackets=1,
-  )
+      points_to_evaluate=[
+        {"sgd_minibatch_size": 20000, "num_sgd_iter": 12, "lr": 0.000126, "lambda": 0.95, "vf_loss_coeff": 0.7, "entropy_coeff": 0.000102, "clip_param": 0.25, "vf_clip_param": 2},
+        {"sgd_minibatch_size": 5000, "num_sgd_iter": 10, "lr": 0.000229, "lambda": 0.90, "vf_loss_coeff": 0.8, "entropy_coeff": 0.000908, "clip_param": 0.25, "vf_clip_param": 6},
+        {"sgd_minibatch_size": 10000, "num_sgd_iter": 13, "lr": 0.000217, "lambda": 0.90, "vf_loss_coeff": 0.7, "entropy_coeff": 0.000315, "clip_param": 0.25, "vf_clip_param": 5},
+      ],
+    )
 
-  optuna_search = OptunaSearch(
-    metric="episode_reward_mean",
-    mode="max",
-    points_to_evaluate=[
-      {"sgd_minibatch_size": 20000, "num_sgd_iter": 12, "lr": 0.000126, "lambda": 0.95, "vf_loss_coeff": 0.7, "entropy_coeff": 0.000102, "clip_param": 0.25, "vf_clip_param": 2},
-      {"sgd_minibatch_size": 5000, "num_sgd_iter": 10, "lr": 0.000229, "lambda": 0.90, "vf_loss_coeff": 0.8, "entropy_coeff": 0.000908, "clip_param": 0.25, "vf_clip_param": 6},
-      {"sgd_minibatch_size": 10000, "num_sgd_iter": 13, "lr": 0.000217, "lambda": 0.90, "vf_loss_coeff": 0.7, "entropy_coeff": 0.000315, "clip_param": 0.25, "vf_clip_param": 5},
-    ])
+    def trial_name_string(trial: ray.tune.experiment.Trial):
+      """Create a custom name that includes hyperparameters."""
+      attributes = ["sgd_minibatch_size", "num_sgd_iter", "lr", "lambda",
+                    "vf_loss_coeff", "entropy_coeff", "clip_param",
+                    "vf_clip_param"]
+      attributes_str = [f"{trial.config[a]:.5f}".rstrip("0").rstrip(".") for a in attributes]
+      return f"{trial.trainable_name}_{trial.trial_id}_{','.join(attributes_str)}"
 
-  def trial_name_string(trial: ray.tune.experiment.Trial):
-    """Create a custom name that includes hyperparameters."""
-    attributes = ["sgd_minibatch_size", "num_sgd_iter", "lr", "lambda",
-                  "vf_loss_coeff", "entropy_coeff", "clip_param",
-                  "vf_clip_param"]
-    attributes_str = [f"{trial.config[a]:.5f}".rstrip("0").rstrip(".") for a in attributes]
-    return f"{trial.trainable_name}_{trial.trial_id}_{','.join(attributes_str)}"
+    metric = None
+    mode = None
+  else:
+    config = config.training(
+      sgd_minibatch_size=1000,
+      num_sgd_iter=10,
+      lr=2e-4,
+      lambda_=0.925,
+      vf_loss_coeff=0.75,
+      entropy_coeff=3e-4,
+      clip_param=0.25,
+      vf_clip_param=5,
+    )
+
+    metric = "episode_reward_mean"
+    mode = "max"
+    search_alg = None
+    scheduler = None
+    trial_name_string = None
+
 
   callbacks = [
       WandbLoggerCallback(
@@ -297,23 +324,23 @@ if __name__ == "__main__":
   ] if args.wandb is not None else None
 
   experiment = tune.run(
-      run_or_experiment="PPO",
-      name=args.substrate,
-      # metric="episode_reward_mean",
-      # mode="max",
-      stop={"training_iteration": args.n_iterations},
-      config=config,
-      num_samples=args.num_samples,
-      storage_path=args.local_dir,
-      search_alg=optuna_search,
-      scheduler=asha_scheduler,
-      checkpoint_config=checkpoint_config,
-      verbose=VERBOSE,
-      trial_name_creator=trial_name_string,
-      log_to_file=False,
-      callbacks=callbacks,
-      max_concurrent_trials=args.max_concurrent_trials,
-      resume=args.resume,
+    run_or_experiment="PPO",
+    name=args.substrate,
+    metric=metric,
+    mode=mode,
+    stop={"training_iteration": args.n_iterations},
+    config=config,
+    num_samples=args.num_samples,
+    storage_path=args.local_dir,
+    search_alg=search_alg,
+    scheduler=scheduler,
+    checkpoint_config=checkpoint_config,
+    verbose=VERBOSE,
+    trial_name_creator=trial_name_string,
+    log_to_file=False,
+    callbacks=callbacks,
+    max_concurrent_trials=args.max_concurrent_trials,
+    resume=args.resume,
   )
 
   # run_config = RunConfig(

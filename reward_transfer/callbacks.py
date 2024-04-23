@@ -44,6 +44,7 @@ class MyCallbacks(DefaultCallbacks):
 
       agent_ids = episode.get_agents()
       n = len(episode.get_agents())
+      assert n > 1, "Reward transfer requires two or more agents"
       policy_ids = [episode.policy_for(aid) for aid in agent_ids]
 
       # create the reward transfer matrix
@@ -64,13 +65,13 @@ class MyCallbacks(DefaultCallbacks):
     # update the postprocessed_batch
     if self.log:
       logging.info(
-          f"{episode.episode_id} \n before \n {postprocessed_batch[SampleBatch.REWARDS]}"
+        "%s \n before \n %s", episode.episode_id, postprocessed_batch[SampleBatch.REWARDS]
       )
     postprocessed_batch[
         SampleBatch.REWARDS] = episode.user_data["ptr"].loc[agent_id].values
     if self.log:
       logging.info(
-          f"{episode.episode_id} \n after \n {postprocessed_batch[SampleBatch.REWARDS]}"
+        "%s \n after \n %s", episode.episode_id, postprocessed_batch[SampleBatch.REWARDS]
       )
 
   # def on_train_result(

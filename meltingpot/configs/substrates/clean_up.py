@@ -607,9 +607,9 @@ def create_scene():
           {
               "component": "StochasticIntervalEpisodeEnding",
               "kwargs": {
-                  "minimumFramesPerEpisode": 1000,
+                  "minimumFramesPerEpisode": 2000,
                   "intervalLength": 100,  # Set equal to unroll length.
-                  "probabilityTerminationPerInterval": 0.2
+                  "probabilityTerminationPerInterval": 1.0
               }
           },
           {
@@ -833,7 +833,7 @@ def get_config():
 
   # The roles assigned to each player.
   config.valid_roles = frozenset({"default"})
-  config.default_player_roles = ("default",) * 7
+  config.default_player_roles = ("default",) * 3
 
   return config
 
@@ -851,7 +851,7 @@ def build(
       levelDirectory="meltingpot/lua/levels",
       numPlayers=num_players,
       # Define upper bound of episode length since episodes end stochastically.
-      maxEpisodeLengthFrames=5000,
+      maxEpisodeLengthFrames=2000,
       spriteSize=8,
       topology="BOUNDED",  # Choose from ["BOUNDED", "TORUS"],
       simulation={
