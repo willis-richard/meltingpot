@@ -299,7 +299,7 @@ if __name__ == "__main__":
     mode = None
   else:
     config = config.training(
-      sgd_minibatch_size=1000,
+      sgd_minibatch_size=10000,
       num_sgd_iter=10,
       lr=2e-4,
       lambda_=0.925,
