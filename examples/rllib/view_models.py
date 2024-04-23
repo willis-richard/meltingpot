@@ -27,6 +27,17 @@ from ray.tune.registry import register_env
 from examples.rllib.utils import env_creator, RayModelPolicy
 
 
+class RandomBot:
+  def __init__(self, action_space):
+    self.action_space = action_space
+
+  def initial_state(self):
+    return None
+
+  def step(self, *args):
+    return self.action_space.sample(), None
+
+
 def get_human_action():
   a = None
   for event in pygame.event.get():
@@ -98,7 +109,9 @@ def main():
 
   # Create a new environment to visualise
   env_config = config["env_config"]
-  env = env_creator(env_config).get_dmlab2d_env()
+  env = env_creator(env_config)
+  action_space = env.action_space["player_0"]
+  env = env.get_dmlab2d_env()
   obs_spec = env.observation_spec()
   shape = obs_spec[0]["WORLD.RGB"].shape
 
@@ -109,7 +122,10 @@ def main():
       RayModelPolicy(
         trainer,
         env_config["substrate_config"]["individual_observation_names"],
-        role) for role in roles
+        role)
+    if role != "random" else
+      RandomBot(action_space)
+    for role in roles
   ]
   bots = bots[1:] if args.human else bots
 
