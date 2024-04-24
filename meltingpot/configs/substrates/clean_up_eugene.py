@@ -413,6 +413,7 @@ def create_scene():
               "kwargs": {
                   "dirtSpawnProbability": 0.50,
                   "threshold": 0.4,
+                  "delayStartOfDirtSpawning": 50,
               },
           },
           {

@@ -52,6 +52,8 @@ PrefabConfig = game_object_utils.PrefabConfig
 # Warning: setting `_ENABLE_DEBUG_OBSERVATIONS = True` may cause slowdown.
 _ENABLE_DEBUG_OBSERVATIONS = False
 
+SPRITE_SIZE = 1
+
 ASCII_MAP = """
 WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW
 WHFFFHFFHFHFHFHFHFHFHHFHFFFHFW
@@ -828,7 +830,7 @@ def get_config():
       # Global switching signals for puppeteers.
       "NUM_OTHERS_WHO_CLEANED_THIS_STEP": specs.float64(),
       # Debug only (do not use the following observations in policies).
-      "WORLD.RGB": specs.rgb(168, 240),
+      "WORLD.RGB": specs.rgb(21 * SPRITE_SIZE, 30 * SPRITE_SIZE),
   })
 
   # The roles assigned to each player.
@@ -852,7 +854,7 @@ def build(
       numPlayers=num_players,
       # Define upper bound of episode length since episodes end stochastically.
       maxEpisodeLengthFrames=2000,
-      spriteSize=8,
+      spriteSize=SPRITE_SIZE,
       topology="BOUNDED",  # Choose from ["BOUNDED", "TORUS"],
       simulation={
           "map": ASCII_MAP,

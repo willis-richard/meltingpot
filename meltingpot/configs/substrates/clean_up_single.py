@@ -52,13 +52,15 @@ PrefabConfig = game_object_utils.PrefabConfig
 # Warning: setting `_ENABLE_DEBUG_OBSERVATIONS = True` may cause slowdown.
 _ENABLE_DEBUG_OBSERVATIONS = False
 
+SPRITE_SIZE = 1
+
 ASCII_MAP = """
 WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW
-WHHFFHHFHFHHHFHFHHHFHHFHHFFHHW
-WHFHFHHFHFHHHFHFHHHFHHFHHFFHHW
-WHFFHHFHHFHHHFHFHHHFHHFHHFFHHW
-WHFHFHHFHFHHHFHFHHHFHHFHHFFHHW
-WHFFHFFHHFHFHHHFHFHHHHFHFHFHFW
+WHHFFHHFHFHHHFHFHHHFHHFHHHFHHW
+WHFHFHHFHFHHHFHFHHHFHHHHHFFHHW
+WHFFHHFHHFHHHFHFHHHHHHFHHFFHHW
+WHFHFHHFHFHHHFHHHHHFHHFHHFFHHW
+WHFFHFFHHHHFHHHFHFHHHHFHFHFHFW
 W==============+~HHHHHHHf====W
 W   P    P      ===+~SSf     W
 W     P     P   P  <~Sf  P   W
@@ -397,7 +399,7 @@ POTENTIAL_APPLE = {
         {
             "component": "AppleGrow",
             "kwargs": {
-                "maxAppleGrowthRate": 0.005,
+                "maxAppleGrowthRate": 0.007,
                 "thresholdDepletion": 0.4,
                 "thresholdRestoration": 0.0,
             }
@@ -445,6 +447,7 @@ def create_dirt_prefab(initial_state):
               "kwargs": {
                   "activeState": "dirt",
                   "inactiveState": "dirtWait",
+                  "cap": True,
               }
           },
           {
@@ -598,10 +601,11 @@ def create_scene():
               "kwargs": {},
           },
           {
-              "component": "DirtSpawner",
+              "component": "DirtSpawnerCapped",
               "kwargs": {
-                  "dirtSpawnProbability": 0.05,
+                  "dirtSpawnProbability": 0.07,
                   "delayStartOfDirtSpawning": 50,
+                  "threshold": 0.4,
               },
           },
           {
@@ -828,7 +832,7 @@ def get_config():
       # Global switching signals for puppeteers.
       "NUM_OTHERS_WHO_CLEANED_THIS_STEP": specs.float64(),
       # Debug only (do not use the following observations in policies).
-      "WORLD.RGB": specs.rgb(168, 240),
+      "WORLD.RGB": specs.rgb(21 * SPRITE_SIZE, 30 * SPRITE_SIZE),
   })
 
   # The roles assigned to each player.
@@ -852,7 +856,7 @@ def build(
       numPlayers=num_players,
       # Define upper bound of episode length since episodes end stochastically.
       maxEpisodeLengthFrames=2000,
-      spriteSize=8,
+      spriteSize=SPRITE_SIZE,
       topology="BOUNDED",  # Choose from ["BOUNDED", "TORUS"],
       simulation={
           "map": ASCII_MAP,
