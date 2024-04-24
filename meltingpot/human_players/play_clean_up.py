@@ -29,7 +29,7 @@ from ml_collections import config_dict
 environment_configs = {
     'clean_up': clean_up,
     'clean_up_single': clean_up_single,
-    'clean_up_eugene_': clean_up_eugene,
+    'clean_up_eugene': clean_up_eugene,
 }
 
 _ACTION_MAP = {

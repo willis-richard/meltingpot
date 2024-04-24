@@ -54,19 +54,20 @@ _ENABLE_DEBUG_OBSERVATIONS = False
 
 SPRITE_SIZE = 1
 
+# River area: 147
+# Original starting waste: 79
+# New starting waste: 46
 ASCII_MAP = """
 WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW
-WHHFFHHFHFHHHFHFHHHFHHFHHHFHHW
-WHFHFHHFHFHHHFHFHHHFHHHHHFFHHW
-WHFFHHFHHFHHHFHFHHHHHHFHHFFHHW
-WHFHFHHFHFHHHFHHHHHFHHFHHFFHHW
-WHFFHFFHHHHFHHHFHFHHHHFHFHFHFW
-W==============+~HHHHHHHf====W
+WHFHHHFHHFHHHHHHHHHHHHFHHHHHFW
+WHHHHHHFHHHFHHHFHHHFHHHHFHFHHW
+WHFHHFHHHFHHHHHFHHHHHHFHHHFHFW
+WHFHFHHFHHHFHFHHHFHFHHHHFHHHFW
+WHFFHFHFHFHFHFHFHFHFHHFHFHFHFW
+W==============+~FHHHHHHf====W
 W   P    P      ===+~SSf     W
 W     P     P   P  <~Sf  P   W
 W             P   P<~S>      W
-W   P    P         <~S>   P  W
-W               P  <~S>P     W
 W     P           P<~S>      W
 W           P      <~S> P    W
 W  P             P <~S>      W
@@ -399,7 +400,7 @@ POTENTIAL_APPLE = {
         {
             "component": "AppleGrow",
             "kwargs": {
-                "maxAppleGrowthRate": 0.007,
+                "maxAppleGrowthRate": 0.01,
                 "thresholdDepletion": 0.4,
                 "thresholdRestoration": 0.0,
             }
@@ -604,7 +605,7 @@ def create_scene():
               "component": "DirtSpawnerCapped",
               "kwargs": {
                   "dirtSpawnProbability": 0.07,
-                  "delayStartOfDirtSpawning": 50,
+                  "delayStartOfDirtSpawning": 0,
                   "threshold": 0.4,
               },
           },
@@ -832,7 +833,7 @@ def get_config():
       # Global switching signals for puppeteers.
       "NUM_OTHERS_WHO_CLEANED_THIS_STEP": specs.float64(),
       # Debug only (do not use the following observations in policies).
-      "WORLD.RGB": specs.rgb(21 * SPRITE_SIZE, 30 * SPRITE_SIZE),
+      "WORLD.RGB": specs.rgb(19 * SPRITE_SIZE, 30 * SPRITE_SIZE),
   })
 
   # The roles assigned to each player.
