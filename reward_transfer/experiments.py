@@ -258,8 +258,8 @@ if __name__ == "__main__":
 
   if args.optimiser:
     config = config.training(
-      sgd_minibatch_size=tune.qrandint(5000, 30000, 5000),
-      num_sgd_iter=tune.qlograndint(3, 30, 1),
+      sgd_minibatch_size=tune.qrandint(10000, 30000, 10000),
+      num_sgd_iter=tune.qlograndint(5, 20, 1),
       lr=tune.qloguniform(1e-5, 1e-3, 1e-5),
       lambda_=tune.quniform(0.9, 1.0, 0.05),
       vf_loss_coeff=tune.quniform(0.5, 1, 0.1),
@@ -282,7 +282,6 @@ if __name__ == "__main__":
       mode="max",
       points_to_evaluate=[
         {"sgd_minibatch_size": 20000, "num_sgd_iter": 12, "lr": 0.000126, "lambda": 0.95, "vf_loss_coeff": 0.7, "clip_param": 0.25, "vf_clip_param": 2},
-        {"sgd_minibatch_size": 5000, "num_sgd_iter": 10, "lr": 0.000229, "lambda": 0.90, "vf_loss_coeff": 0.8, "clip_param": 0.25, "vf_clip_param": 6},
         {"sgd_minibatch_size": 10000, "num_sgd_iter": 13, "lr": 0.000217, "lambda": 0.90, "vf_loss_coeff": 0.7, "clip_param": 0.25, "vf_clip_param": 5},
       ],
     )
