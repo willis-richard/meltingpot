@@ -209,6 +209,7 @@ if __name__ == "__main__":
   config = PPOConfig().training(
     model=DEFAULT_MODEL,
     train_batch_size=train_batch_size,
+    entropy_coeff=1e-3,
   ).rollouts(
       batch_mode="complete_episodes",
       num_rollout_workers=args.rollout_workers,
@@ -247,7 +248,7 @@ if __name__ == "__main__":
 
   if args.reward_transfer:
     tm = {"default": 0.24}
-    my_callbacks = make_my_callbacks(tm, True)
+    my_callbacks = make_my_callbacks(tm, False)
     config = config.callbacks(my_callbacks)
 
   checkpoint_config = CheckpointConfig(
@@ -262,7 +263,6 @@ if __name__ == "__main__":
       lr=tune.qloguniform(1e-5, 1e-3, 1e-5),
       lambda_=tune.quniform(0.9, 1.0, 0.05),
       vf_loss_coeff=tune.quniform(0.5, 1, 0.1),
-      entropy_coeff=tune.qloguniform(1e-4, 1e-3, 1e-4),
       clip_param=tune.quniform(0.1, 0.5, 0.05),
       vf_clip_param=tune.qlograndint(1, 20, 1),
     )
@@ -281,17 +281,16 @@ if __name__ == "__main__":
       metric="episode_reward_mean",
       mode="max",
       points_to_evaluate=[
-        {"sgd_minibatch_size": 20000, "num_sgd_iter": 12, "lr": 0.000126, "lambda": 0.95, "vf_loss_coeff": 0.7, "entropy_coeff": 0.000102, "clip_param": 0.25, "vf_clip_param": 2},
-        {"sgd_minibatch_size": 5000, "num_sgd_iter": 10, "lr": 0.000229, "lambda": 0.90, "vf_loss_coeff": 0.8, "entropy_coeff": 0.000908, "clip_param": 0.25, "vf_clip_param": 6},
-        {"sgd_minibatch_size": 10000, "num_sgd_iter": 13, "lr": 0.000217, "lambda": 0.90, "vf_loss_coeff": 0.7, "entropy_coeff": 0.000315, "clip_param": 0.25, "vf_clip_param": 5},
+        {"sgd_minibatch_size": 20000, "num_sgd_iter": 12, "lr": 0.000126, "lambda": 0.95, "vf_loss_coeff": 0.7, "clip_param": 0.25, "vf_clip_param": 2},
+        {"sgd_minibatch_size": 5000, "num_sgd_iter": 10, "lr": 0.000229, "lambda": 0.90, "vf_loss_coeff": 0.8, "clip_param": 0.25, "vf_clip_param": 6},
+        {"sgd_minibatch_size": 10000, "num_sgd_iter": 13, "lr": 0.000217, "lambda": 0.90, "vf_loss_coeff": 0.7, "clip_param": 0.25, "vf_clip_param": 5},
       ],
     )
 
     def trial_name_string(trial: ray.tune.experiment.Trial):
       """Create a custom name that includes hyperparameters."""
       attributes = ["sgd_minibatch_size", "num_sgd_iter", "lr", "lambda",
-                    "vf_loss_coeff", "entropy_coeff", "clip_param",
-                    "vf_clip_param"]
+                    "vf_loss_coeff", "clip_param", "vf_clip_param"]
       attributes_str = [f"{trial.config[a]:.5f}".rstrip("0").rstrip(".") for a in attributes]
       return f"{trial.trainable_name}_{trial.trial_id}_{','.join(attributes_str)}"
 
@@ -304,7 +303,6 @@ if __name__ == "__main__":
       lr=2e-4,
       lambda_=0.925,
       vf_loss_coeff=0.75,
-      entropy_coeff=3e-4,
       clip_param=0.25,
       vf_clip_param=5,
     )
