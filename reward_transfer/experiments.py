@@ -31,9 +31,7 @@ VERBOSE = 1
 KEEP_CHECKPOINTS_NUM = None  # Default None
 CHECKPOINT_FREQ = 0  # Default 0
 
-SGD_MINIBATCH_SIZE = 15000
 EXPLORE_EVAL = False
-ENTROPY_COEFF = 0.0003
 # TODO: Fix evaluation at end of training
 EVAL_DURATION = 80
 
@@ -297,7 +295,7 @@ if __name__ == "__main__":
     mode = None
   else:
     config = config.training(
-      sgd_minibatch_size=10000,
+      sgd_minibatch_size=20000,
       num_sgd_iter=10,
       lr=2e-4,
       lambda_=0.925,

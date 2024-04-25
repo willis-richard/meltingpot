@@ -68,6 +68,8 @@ W==============+~FHHHHHHf====W
 W   P    P      ===+~SSf     W
 W     P     P   P  <~Sf  P   W
 W             P   P<~S>      W
+W   P    P         <~S>   P  W
+W               P  <~S>P     W
 W     P           P<~S>      W
 W           P      <~S> P    W
 W  P             P <~S>      W
@@ -833,7 +835,7 @@ def get_config():
       # Global switching signals for puppeteers.
       "NUM_OTHERS_WHO_CLEANED_THIS_STEP": specs.float64(),
       # Debug only (do not use the following observations in policies).
-      "WORLD.RGB": specs.rgb(19 * SPRITE_SIZE, 30 * SPRITE_SIZE),
+      "WORLD.RGB": specs.rgb(21 * SPRITE_SIZE, 30 * SPRITE_SIZE),
   })
 
   # The roles assigned to each player.
