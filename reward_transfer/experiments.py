@@ -13,7 +13,6 @@ from ray import tune
 from ray.air import CheckpointConfig
 from ray.air.integrations.wandb import WandbLoggerCallback
 from ray.rllib.algorithms.ppo import PPOConfig
-from ray.rllib.examples.policy.random_policy import RandomPolicy
 from ray.rllib.policy.policy import PolicySpec
 from ray.tune.registry import register_env
 from ray.tune.schedulers import ASHAScheduler
@@ -102,6 +101,10 @@ if __name__ == "__main__":
     default=None,
     help="wandb project name")
   parser.add_argument(
+    "--independent",
+    action="store_true",
+    help="Training is independent (not self-play) with n policies")
+  parser.add_argument(
     "--resume",
     action="store_true",
     help="Resume the last trial with name/local_dir")
@@ -155,30 +158,16 @@ if __name__ == "__main__":
 
   policies = {}
 
-  if args.substrate == "clean_up_simple_random":
-    policies["default"] = PolicySpec()
-    policies["random"] = PolicySpec(RandomPolicy)
+  for role in unique_roles:
+    policies[role] = PolicySpec()
 
-    def policy_mapping_fn(aid, episode, *args, **kwargs):
-      # One random player is the agent, the others are random policies
-      if episode.episode_id % num_players == int(aid[-1]):
-        return "default"
-      else:
-        return "random"
+  def policy_mapping_fn(aid, *args, **kwargs):
+    for role, pids in unique_roles.items():
+      if aid in pids:
+        return role
+    assert False, f"Agent id {aid} not found in unique roles {unique_roles}"
 
-    policies_to_train = ["default"]
-
-  else:
-    for role in unique_roles:
-      policies[role] = PolicySpec()
-
-    def policy_mapping_fn(aid, *args, **kwargs):
-      for role, pids in unique_roles.items():
-        if aid in pids:
-          return role
-      assert False, f"Agent id {aid} not found in unique roles {unique_roles}"
-
-    policies_to_train = list(unique_roles.keys())
+  policies_to_train = list(unique_roles.keys())
 
   rgb_shape = base_env.observation_space["player_0"]["RGB"].shape
   sprite_x = rgb_shape[0]
