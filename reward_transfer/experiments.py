@@ -39,80 +39,82 @@ if __name__ == "__main__":
 
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument(
-      "--substrate",
-      type=str,
-      required=True,
-      help="Which substrate to train on. e.g. 'coins' or 'allelopathic_harvest__open'."
+    "--substrate",
+    type=str,
+    required=True,
+    help="Which substrate to train on. e.g. 'clean_up'"
   )
   parser.add_argument(
-      "--n_iterations",
-      type=int,
-      required=True,
-      help="number of training iterations to use")
+    "--n_iterations",
+    type=int,
+    required=True,
+    help="number of training iterations to use")
   parser.add_argument(
-      "--framework",
-      type=str,
-      required=True,
-      choices=["torch", "tf", "tf2"],
-      help="which deep learning framework to use")
+    "--framework",
+    type=str,
+    required=True,
+    choices=["torch", "tf", "tf2"],
+    help="which deep learning framework to use")
   parser.add_argument(
-      "--num_cpus", type=int, required=True, help="number of CPUs to use")
+    "--num_cpus", type=int, required=True, help="number of CPUs to use")
   parser.add_argument(
-      "--num_gpus", type=int, default=0, help="number of GPUs to use")
+    "--num_gpus", type=int, default=0, help="number of GPUs to use")
   parser.add_argument(
-      "--local_dir",
-      type=str,
-      required=True,
-      help="The path the results will be saved to")
+    "--local_dir",
+    type=str,
+    required=True,
+    help="The path the results will be saved to")
   parser.add_argument(
-      "--tmp_dir",
-      type=str,
-      default=None,
-      help="Custom tmp location for temporary ray logs")
+    "--tmp_dir",
+    type=str,
+    default=None,
+    help="Custom tmp location for temporary ray logs")
   parser.add_argument(
-      "--rollout_workers",
-      type=int,
-      required=True,
-      help="Number of rollout workers, should be in [0,num_cpus]")
+    "--rollout_workers",
+    type=int,
+    required=True,
+    help="Number of rollout workers, should be in [0,num_cpus]")
   parser.add_argument(
-      "--num_samples", type=int, default=1, help="Number of samples to run")
+    "--num_samples", type=int, default=1, help="Number of samples to run")
   parser.add_argument(
-      "--envs_per_worker",
-      type=int,
-      default=1,
-      help="Number of episodes each worker runs in parallel")
+    "--envs_per_worker",
+    type=int,
+    default=1,
+    help="Number of episodes each worker runs in parallel")
   parser.add_argument(
-      "--episodes_per_worker",
-      type=int,
-      default=1,
-      help="Number of episodes per each worker in a training batch (not including parallelism)")
+    "--episodes_per_worker",
+    type=int,
+    default=1,
+    help="Number of episodes per each worker in a training batch (not including parallelism)")
   parser.add_argument(
-      "--max_concurrent_trials",
-      type=int,
-      default=None,
-      help="maximum number of concurrent trials to run")
+    "--max_concurrent_trials",
+    type=int,
+    default=None,
+    help="maximum number of concurrent trials to run")
   parser.add_argument(
-      "--policy_checkpoint",
-      type=str,
-      default=None,
-      help="A path to a policy checkpoint to load the weights from")
+    "--policy_checkpoint",
+    type=str,
+    default=None,
+    help="A path to a policy checkpoint to load the weights from")
   parser.add_argument(
-      "--wandb",
-      type=str,
-      default=None,
-      help="wandb project name")
+    "--wandb",
+    type=str,
+    default=None,
+    help="wandb project name")
   parser.add_argument(
-      "--resume",
-      action="store_true",
-      help="Resume the last trial with name/local_dir")
+    "--resume",
+    action="store_true",
+    help="Resume the last trial with name/local_dir")
   parser.add_argument(
-      "--reward_transfer",
-      action="store_true",
-      help="Enable reward transfers")
+    "--reward_transfer",
+    type=float,
+    default=None,
+    help="Self-interest of the agents")
   parser.add_argument(
-      "--optimiser",
-      action="store_true",
-      help="Use an optimiser for hyper parameter tuning")
+    "--optimiser",
+    action="store_true",
+    help="Use an optimiser for hyper parameter tuning")
+
   args = parser.parse_args()
 
   ray.init(
@@ -214,49 +216,58 @@ if __name__ == "__main__":
     train_batch_size=train_batch_size,
     entropy_coeff=1e-3,
   ).rollouts(
-      batch_mode="complete_episodes",
-      num_rollout_workers=args.rollout_workers,
-      rollout_fragment_length=100,
-      num_envs_per_worker=args.envs_per_worker,
+    batch_mode="complete_episodes",
+    num_rollout_workers=args.rollout_workers,
+    rollout_fragment_length=100,
+    num_envs_per_worker=args.envs_per_worker,
   ).multi_agent(
-      policies=policies,
-      policy_mapping_fn=policy_mapping_fn,
-      policies_to_train=policies_to_train,
-      count_steps_by="env_steps",
+    policies=policies,
+    policy_mapping_fn=policy_mapping_fn,
+    policies_to_train=policies_to_train,
+    count_steps_by="env_steps",
   ).fault_tolerance(
-      recreate_failed_workers=True,
-      num_consecutive_worker_failures_tolerance=3,
+    recreate_failed_workers=True,
+    num_consecutive_worker_failures_tolerance=3,
   ).environment(
-      env="meltingpot",
-      env_config=env_config,
+    env="meltingpot",
+    env_config=env_config,
   ).debugging(
-      log_level=LOGGING_LEVEL,
+    log_level=LOGGING_LEVEL,
   ).resources(
-      num_gpus=args.num_gpus / parallelism,
+    num_gpus=args.num_gpus / parallelism,
   ).framework(
-      framework=args.framework,
+    framework=args.framework,
   ).reporting(
-      metrics_num_episodes_for_smoothing=1,
+    metrics_num_episodes_for_smoothing=1,
   ).evaluation(
-      evaluation_interval=None,  # don't evaluate unless we call evaluation()
-      evaluation_config={
-          "explore": EXPLORE_EVAL,
-      },
-      evaluation_duration=EVAL_DURATION,
+    evaluation_interval=None,  # don't evaluate unless we call evaluation()
+    evaluation_config={
+        "explore": EXPLORE_EVAL,
+    },
+    evaluation_duration=EVAL_DURATION,
   ).experimental(
-      # will be set to true in future versions of Ray, was True in baselines
-      # I don't know how to get this to work though - and I can't use the baselines
-      # policy wrapper either without it
-      _disable_preprocessor_api=False)
+    # will be set to true in future versions of Ray, was True in baselines
+    # I don't know how to get this to work though - and I can't use the baselines
+    # policy wrapper either without it
+  _disable_preprocessor_api=False)
+
+  algo_callbacks = []
 
   if args.reward_transfer:
-    tm = {"default": 0.24}
+    tm = {"default": args.reward_transfer}
     rt_callback = make_rt_callback(tm, False)
-    config = config.callbacks(rt_callback)
+    algo_callbacks.append(rt_callback)
 
   if args.policy_checkpoint:
     config["policy_checkpoint"] = args.policy_checkpoint
-    config = config.callbacks(LoadPolicyCallback)
+    algo_callbacks.append(LoadPolicyCallback)
+
+  if algo_callbacks:
+    if len(algo_callbacks) > 1:
+      CombinedCallback = type("CombinedCallback", tuple(algo_callbacks), {})
+      config = config.callbacks(CombinedCallback)
+    else:
+      config = config.callbacks(algo_callbacks[0])
 
   checkpoint_config = CheckpointConfig(
       num_to_keep=KEEP_CHECKPOINTS_NUM,
@@ -305,7 +316,7 @@ if __name__ == "__main__":
   else:
     config = config.training(
       sgd_minibatch_size=20000,
-      num_sgd_iter=10,
+      num_sgd_iter=12,
       lr=1e-5,
       lambda_=0.925,
       vf_loss_coeff=0.75,
@@ -320,7 +331,7 @@ if __name__ == "__main__":
     trial_name_string = None
 
 
-  callbacks = [
+  tune_callbacks = [
       WandbLoggerCallback(
           project=args.wandb,
           api_key=os.environ["WANDB_API_KEY"],
@@ -342,7 +353,7 @@ if __name__ == "__main__":
     verbose=VERBOSE,
     trial_name_creator=trial_name_string,
     log_to_file=False,
-    callbacks=callbacks,
+    callbacks=tune_callbacks,
     max_concurrent_trials=args.max_concurrent_trials,
     resume=args.resume,
   )
