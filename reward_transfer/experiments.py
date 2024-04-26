@@ -20,7 +20,7 @@ from ray.tune.schedulers import ASHAScheduler
 from ray.tune.search.optuna import OptunaSearch
 
 from examples.rllib import utils
-from reward_transfer.callbacks import make_my_callbacks
+from reward_transfer.callbacks import make_rt_callback, LoadPolicyCallback
 
 # Use Tuner.fit() to gridsearch over exchange values
 # Thus I need to stick a custom parameter in the config and hope I can access this in the callback
@@ -91,6 +91,11 @@ if __name__ == "__main__":
       type=int,
       default=None,
       help="maximum number of concurrent trials to run")
+  parser.add_argument(
+      "--policy_checkpoint",
+      type=str,
+      default=None,
+      help="A path to a policy checkpoint to load the weights from")
   parser.add_argument(
       "--wandb",
       type=str,
@@ -246,8 +251,12 @@ if __name__ == "__main__":
 
   if args.reward_transfer:
     tm = {"default": 0.24}
-    my_callbacks = make_my_callbacks(tm, False)
-    config = config.callbacks(my_callbacks)
+    rt_callback = make_rt_callback(tm, False)
+    config = config.callbacks(rt_callback)
+
+  if args.policy_checkpoint:
+    config["policy_checkpoint"] = args.policy_checkpoint
+    config = config.callbacks(LoadPolicyCallback)
 
   checkpoint_config = CheckpointConfig(
       num_to_keep=KEEP_CHECKPOINTS_NUM,
@@ -297,7 +306,7 @@ if __name__ == "__main__":
     config = config.training(
       sgd_minibatch_size=20000,
       num_sgd_iter=10,
-      lr=2e-4,
+      lr=1e-5,
       lambda_=0.925,
       vf_loss_coeff=0.75,
       clip_param=0.25,

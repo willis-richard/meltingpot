@@ -13,7 +13,7 @@ from ray.rllib.utils.typing import PolicyID
 logging.basicConfig(filename="callbacks.log", level=logging.INFO)
 
 
-class MyCallbacks(DefaultCallbacks):
+class RewardTransferCallback(DefaultCallbacks):
 
   def __init__(self):
     super().__init__()
@@ -74,15 +74,6 @@ class MyCallbacks(DefaultCallbacks):
         "%s \n after \n %s", episode.episode_id, postprocessed_batch[SampleBatch.REWARDS]
       )
 
-  # def on_train_result(
-  #     self,
-  #     *,
-  #     algorithm: "Algorithm",
-  #     result: dict,
-  #     **kwargs,
-  # ) -> None:
-  #   pass
-
   # def on_algorithm_init(
   #     self,
   #     *,
@@ -91,9 +82,24 @@ class MyCallbacks(DefaultCallbacks):
   # ) -> None:
   #   self.transfer_map = deepcopy(algorithm.config.transfer_map)
 
-def make_my_callbacks(tm: Dict[str, float], l: bool):
-  class NewCallbacksClass(MyCallbacks):
+def make_rt_callback(tm: Dict[str, float], l: bool):
+  class NewCallbacksClass(RewardTransferCallback):
     transfer_map = tm
     log = l
 
   return NewCallbacksClass
+
+
+class LoadPolicyCallback(DefaultCallbacks):
+
+  def __init__(self):
+    super().__init__()
+
+  def on_algorithm_init(
+      self,
+      *,
+      algorithm: "Algorithm",
+      **kwargs,
+  ) -> None:
+    policy = Policy.from_checkpoint(algorithm.config.get("policy_checkpoint"))
+    algorithm.get_policy(policy_id="default").set_weights(policy.get_weights())

@@ -19,11 +19,13 @@ import argparse
 
 import dm_env
 from dmlab2d.ui_renderer import pygame
+from ml_collections.config_dict import ConfigDict
 import numpy as np
 from ray.rllib.algorithms.registry import _get_algorithm_class
 from ray.tune.analysis.experiment_analysis import ExperimentAnalysis
 from ray.tune.registry import register_env
 
+from meltingpot import substrate
 from examples.rllib.utils import env_creator, RayModelPolicy
 
 
@@ -82,6 +84,11 @@ def main():
       type=int,
       default=8,
       help="Frames per second (default 8)")
+  parser.add_argument(
+      "--substrate",
+      type=str,
+      default=None,
+      help="Use this substrate instead of the original")
 
   args = parser.parse_args()
 
@@ -108,7 +115,18 @@ def main():
   trainer.load_checkpoint(checkpoint_path)
 
   # Create a new environment to visualise
-  env_config = config["env_config"]
+  if args.substrate:
+    substrate_config = substrate.get_config(args.substrate)
+
+    env_config = ConfigDict({
+        "substrate": args.substrate,
+        "substrate_config": substrate_config,
+        "roles": substrate_config["default_player_roles"],
+        "scaled": 1
+    })
+  else:
+    env_config = config["env_config"]
+
   env = env_creator(env_config)
   action_space = env.action_space["player_0"]
   env = env.get_dmlab2d_env()
