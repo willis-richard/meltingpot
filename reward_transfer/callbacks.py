@@ -48,8 +48,8 @@ class RewardTransferCallback(DefaultCallbacks):
       policy_ids = [episode.policy_for(aid) for aid in agent_ids]
 
       # create the reward transfer matrix
-      self_interests = np.array(
-          [self.transfer_map[pid] for pid in policy_ids], dtype=float)
+      self_interests = np.array([self.transfer_map[pid] for pid in policy_ids],
+                                dtype=float)
       off_diags = (1 - self_interests) / (n - 1)
       rtm = np.tile(off_diags, (n, 1))
       np.fill_diagonal(rtm, self_interests)
@@ -60,19 +60,19 @@ class RewardTransferCallback(DefaultCallbacks):
           [episode._agent_reward_history[aid] for aid in agent_ids],
           index=agent_ids)
       ptr = rtm.dot(rewards).astype(np.float32)
-      episode.user_data["ptr"] = ptr
+      episode.user_data["post_transfer_reward"] = ptr
 
     # update the postprocessed_batch
     if self.log:
-      logging.info(
-        "%s \n before \n %s", episode.episode_id, postprocessed_batch[SampleBatch.REWARDS]
-      )
-    postprocessed_batch[
-        SampleBatch.REWARDS] = episode.user_data["ptr"].loc[agent_id].values
+      logging.info("%s \n before \n %s", episode.episode_id,
+                   postprocessed_batch[SampleBatch.REWARDS])
+
+    postprocessed_batch[SampleBatch.REWARDS] = episode.user_data[
+        "post_transfer_reward"].loc[agent_id].values
+
     if self.log:
-      logging.info(
-        "%s \n after \n %s", episode.episode_id, postprocessed_batch[SampleBatch.REWARDS]
-      )
+      logging.info("%s \n after \n %s", episode.episode_id,
+                   postprocessed_batch[SampleBatch.REWARDS])
 
   # def on_algorithm_init(
   #     self,
@@ -82,7 +82,9 @@ class RewardTransferCallback(DefaultCallbacks):
   # ) -> None:
   #   self.transfer_map = deepcopy(algorithm.config.transfer_map)
 
+
 def make_rt_callback(tm: Dict[str, float], l: bool):
+
   class NewCallbacksClass(RewardTransferCallback):
     transfer_map = tm
     log = l
@@ -102,4 +104,5 @@ class LoadPolicyCallback(DefaultCallbacks):
       **kwargs,
   ) -> None:
     policy = Policy.from_checkpoint(algorithm.config.get("policy_checkpoint"))
-    algorithm.get_policy(policy_id="default").set_weights(policy.get_weights())
+    for pid in algorithm.config.get("policies").keys():
+      algorithm.get_policy(policy_id=pid).set_weights(policy.get_weights())

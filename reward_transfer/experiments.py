@@ -156,18 +156,20 @@ if __name__ == "__main__":
   for i, (role, pid) in enumerate(zip(player_roles, base_env._ordered_agent_ids)):
     unique_roles[role].append(pid)
 
-  policies = {}
 
-  for role in unique_roles:
-    policies[role] = PolicySpec()
+  if args.independent:
+    policies = dict((aid, PolicySpec()) for aid in base_env._ordered_agent_ids)
 
-  def policy_mapping_fn(aid, *args, **kwargs):
-    for role, pids in unique_roles.items():
-      if aid in pids:
-        return role
-    assert False, f"Agent id {aid} not found in unique roles {unique_roles}"
+    def policy_mapping_fn(aid, *args, **kwargs):
+      return aid
+  else:
+    policies = dict((role, PolicySpec()) for role in unique_roles)
 
-  policies_to_train = list(unique_roles.keys())
+    def policy_mapping_fn(aid, *args, **kwargs):
+      for role, pids in unique_roles.items():
+        if aid in pids:
+          return role
+      assert False, f"Agent id {aid} not found in unique roles {unique_roles}"
 
   rgb_shape = base_env.observation_space["player_0"]["RGB"].shape
   sprite_x = rgb_shape[0]
@@ -212,7 +214,6 @@ if __name__ == "__main__":
   ).multi_agent(
     policies=policies,
     policy_mapping_fn=policy_mapping_fn,
-    policies_to_train=policies_to_train,
     count_steps_by="env_steps",
   ).fault_tolerance(
     recreate_failed_workers=True,
@@ -243,7 +244,10 @@ if __name__ == "__main__":
   algo_callbacks = []
 
   if args.reward_transfer:
-    tm = {"default": args.reward_transfer}
+    if args.independent:
+      tm = dict((aid, args.reward_transfer) for aid in base_env._ordered_agent_ids)
+    else:
+      tm = dict((role, args.reward_transfer) for role in unique_roles)
     rt_callback = make_rt_callback(tm, False)
     algo_callbacks.append(rt_callback)
 
@@ -304,7 +308,7 @@ if __name__ == "__main__":
     mode = None
   else:
     config = config.training(
-      sgd_minibatch_size=20000,
+      sgd_minibatch_size=200,
       num_sgd_iter=12,
       lr=1e-5,
       lambda_=0.925,
