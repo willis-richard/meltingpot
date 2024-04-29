@@ -308,7 +308,7 @@ if __name__ == "__main__":
     mode = None
   else:
     config = config.training(
-      sgd_minibatch_size=200,
+      sgd_minibatch_size=min(20000, train_batch_size),
       num_sgd_iter=12,
       lr=1e-5,
       lambda_=0.925,
