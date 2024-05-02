@@ -8,6 +8,8 @@ from typing import Dict
 
 from meltingpot import substrate
 from ml_collections.config_dict import ConfigDict
+import numpy as np
+import pandas as pd
 import ray
 from ray import tune
 from ray.air import CheckpointConfig
@@ -19,7 +21,7 @@ from ray.tune.schedulers import ASHAScheduler
 from ray.tune.search.optuna import OptunaSearch
 
 from examples.rllib import utils
-from reward_transfer.callbacks import make_rt_callback, LoadPolicyCallback
+from reward_transfer.callbacks import LoadPolicyCallback
 
 # Use Tuner.fit() to gridsearch over exchange values
 # Thus I need to stick a custom parameter in the config and hope I can access this in the callback
@@ -202,6 +204,16 @@ if __name__ == "__main__":
   train_batch_size = max(1,
                          args.rollout_workers) * args.envs_per_worker * horizon * args.episodes_per_worker
 
+  if args.reward_transfer:
+    assert num_players > 1, "reward transfer requires 2+ agents"
+    assert 0 <= args.reward_transfer <= 1, "reward transfer value must be in the interval [0,1]"
+    aids = base_env._ordered_agent_ids
+    off_diag_val = (1 - args.reward_transfer) / (num_players - 1)
+    rtm = np.full((num_players, num_players), off_diag_val)
+    np.fill_diagonal(rtm, args.reward_transfer)
+    rtm = pd.DataFrame(data=rtm, index=aids, columns=aids, dtype=float)
+    env_config["rtm"] = rtm
+
   config = PPOConfig().training(
     model=DEFAULT_MODEL,
     train_batch_size=train_batch_size,
@@ -241,26 +253,9 @@ if __name__ == "__main__":
     # policy wrapper either without it
   _disable_preprocessor_api=False)
 
-  algo_callbacks = []
-
-  if args.reward_transfer:
-    if args.independent:
-      tm = dict((aid, args.reward_transfer) for aid in base_env._ordered_agent_ids)
-    else:
-      tm = dict((role, args.reward_transfer) for role in unique_roles)
-    rt_callback = make_rt_callback(tm, False)
-    algo_callbacks.append(rt_callback)
-
   if args.policy_checkpoint:
     config["policy_checkpoint"] = args.policy_checkpoint
-    algo_callbacks.append(LoadPolicyCallback)
-
-  if algo_callbacks:
-    if len(algo_callbacks) > 1:
-      CombinedCallback = type("CombinedCallback", tuple(algo_callbacks), {})
-      config = config.callbacks(CombinedCallback)
-    else:
-      config = config.callbacks(algo_callbacks[0])
+    config = config.callbacks(LoadPolicyCallback)
 
   checkpoint_config = CheckpointConfig(
       num_to_keep=KEEP_CHECKPOINTS_NUM,

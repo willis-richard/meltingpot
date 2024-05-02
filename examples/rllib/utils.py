@@ -35,18 +35,17 @@ PLAYER_STR_FORMAT = "player_{index}"
 class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
   """An adapter between the Melting Pot substrates and RLLib MultiAgentEnv."""
 
-  def __init__(self,
-               env: dmlab2d.Environment,
-               individual_obs: List[str] = ["RGB"]):
+  def __init__(self, env_config: ConfigDict):
     """Initialize the instance
 
     Args:
-      env: dmlab2d environment to wrap. Will be closed when this wrapper closes.
-      individual_obs: the substrate observations to pass to the agents.
-
+      env_config: An environment config
     """
-    self._env = env
-    self._individual_obs = individual_obs
+    substrate_config = env_config["substrate_config"]
+    self._individual_obs = substrate_config["individual_observation_names"]
+    self._env = substrate.build_from_config(substrate_config,
+                                            roles=env_config["roles"])
+
     self._num_players = len(self._env.observation_spec())
     self._ordered_agent_ids = [
         PLAYER_STR_FORMAT.format(index=index)
@@ -68,6 +67,14 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
 
     self._action_space_in_preferred_format = True
     self._obs_space_in_preferred_format = True
+
+    rtm = env_config.get("rtm")
+    if rtm is not None:
+      assert (rtm.index == self._ordered_agent_ids).all(), "Specify the reward_transfer for all agents"
+      self._rtm = rtm
+    else:
+      self._rtm = None
+
     super().__init__()
 
   def reset(self, *args, **kwargs) -> Tuple[MultiAgentDict, MultiAgentDict]:
@@ -83,10 +90,18 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
     """See base class."""
     actions = [action_dict[agent_id] for agent_id in self._ordered_agent_ids]
     timestep = self._env.step(actions)
-    rewards = {
-        agent_id: timestep.reward[index]
-        for index, agent_id in enumerate(self._ordered_agent_ids)
-    }
+
+    if self._rtm is not None:
+      rewards = {
+            aid:
+            np.sum(np.array(timestep.reward, dtype=float) * self._rtm[aid])
+            for aid in self._ordered_agent_ids
+        }
+    else:
+      rewards = {
+          aid: timestep.reward[idx]
+          for idx, aid in enumerate(self._ordered_agent_ids)
+      }
     # gymnasium split done into terminated and truncated
     terminated = {"__all__": timestep.last()}
     truncated = {"__all__": False}
@@ -138,10 +153,7 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
 
 def env_creator(env_config: ConfigDict) -> MeltingPotEnv:
   """Outputs an environment for registering."""
-  substrate_config = env_config["substrate_config"]
-  env = substrate.build_from_config(substrate_config, roles=env_config["roles"])
-  env = MeltingPotEnv(env, substrate_config["individual_observation_names"])
-  return env
+  return MeltingPotEnv(env_config)
 
 
 class RayModelPolicy(policy.Policy[policy.State]):
