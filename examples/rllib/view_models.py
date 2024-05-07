@@ -89,6 +89,14 @@ def main():
       type=str,
       default=None,
       help="Use this substrate instead of the original")
+  parser.add_argument(
+    "--training",
+    type=str,
+    default="self-play",
+    choices=["self-play", "independent", "random"],
+    help="""self-play: all players share the same policy
+    independent: use n policies
+    random: only player_0 is a policy, the other agents are random""")
 
   args = parser.parse_args()
 
@@ -129,23 +137,31 @@ def main():
 
   env = env_creator(env_config)
   action_space = env.action_space["player_0"]
-  env = env.get_dmlab2d_env()
-  obs_spec = env.observation_spec()
-  shape = obs_spec[0]["WORLD.RGB"].shape
 
   # Setup the players
-  roles = env_config["roles"]
-  num_players = len(roles)
+  num_players = len(env._ordered_agent_ids)
+
+  if args.training == "independent":
+    policies = env._ordered_agent_ids
+  elif args.training == "random":
+    policies = ["default"] + ["random"] * (num_players - 1)
+  else:
+    policies = env_config["roles"]
+
   bots = [
       RayModelPolicy(
         trainer,
         env_config["substrate_config"]["individual_observation_names"],
-        role)
-    if role != "random" else
+        policy)
+    if policy != "random" else
       RandomBot(action_space)
-    for role in roles
+    for policy in policies
   ]
   bots = bots[1:] if args.human else bots
+
+  env = env.get_dmlab2d_env()
+  obs_spec = env.observation_spec()
+  shape = obs_spec[0]["WORLD.RGB"].shape
 
   # Configure the pygame display
   pygame.init()

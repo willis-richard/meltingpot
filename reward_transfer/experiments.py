@@ -15,6 +15,7 @@ from ray import tune
 from ray.air import CheckpointConfig
 from ray.air.integrations.wandb import WandbLoggerCallback
 from ray.rllib.algorithms.ppo import PPOConfig
+from ray.rllib.examples.policy.random_policy import RandomPolicy
 from ray.rllib.policy.policy import PolicySpec
 from ray.tune.registry import register_env
 from ray.tune.schedulers import ASHAScheduler
@@ -103,18 +104,22 @@ if __name__ == "__main__":
     default=None,
     help="wandb project name")
   parser.add_argument(
-    "--independent",
-    action="store_true",
-    help="Training is independent (not self-play) with n policies")
-  parser.add_argument(
-    "--resume",
-    action="store_true",
-    help="Resume the last trial with name/local_dir")
+    "--training",
+    type=str,
+    default="self-play",
+    choices=["self-play", "independent", "random"],
+    help="""self-play: all players share the same policy
+    independent: use n policies
+    random: only player_0 is a policy, the other agents are random""")
   parser.add_argument(
     "--reward_transfer",
     type=float,
     default=None,
     help="Self-interest of the agents")
+  parser.add_argument(
+    "--resume",
+    action="store_true",
+    help="Resume the last trial with name/local_dir")
   parser.add_argument(
     "--optimiser",
     action="store_true",
@@ -132,11 +137,12 @@ if __name__ == "__main__":
   register_env("meltingpot", utils.env_creator)
 
   substrate_config = substrate.get_config(args.substrate)
-  player_roles = substrate_config.default_player_roles
-  num_players = len(player_roles)
+  num_players = len(substrate_config.default_player_roles)
+  if args.training == "random":
+    player_roles = ("default",) + ("random",) * (num_players - 1)
+  else:
+    player_roles = substrate_config.default_player_roles
 
-  # 1. import the module.
-  # 2. call build
   env_module = importlib.import_module(
       f"meltingpot.configs.substrates.{args.substrate}")
   substrate_definition = env_module.build(player_roles, substrate_config)
@@ -144,7 +150,6 @@ if __name__ == "__main__":
   horizon = substrate_definition["maxEpisodeLengthFrames"]
   sprite_size = substrate_definition["spriteSize"]
 
-  # TODO: SPRITE_SIZE
   env_config = ConfigDict({
       "substrate": args.substrate,
       "substrate_config": substrate_config,
@@ -158,14 +163,24 @@ if __name__ == "__main__":
   for i, (role, pid) in enumerate(zip(player_roles, base_env._ordered_agent_ids)):
     unique_roles[role].append(pid)
 
-
-  if args.independent:
+  if args.training == "independent":
     policies = dict((aid, PolicySpec()) for aid in base_env._ordered_agent_ids)
+    policies_to_train = None
 
     def policy_mapping_fn(aid, *args, **kwargs):
       return aid
+  elif args.training == "random":
+    policies = {"default": PolicySpec(), "random": PolicySpec(RandomPolicy)}
+    policies_to_train = ["default"]
+
+    def policy_mapping_fn(aid, *args, **kwargs):
+      for role, pids in unique_roles.items():
+        if aid in pids:
+          return role
+      assert False, f"Agent id {aid} not found in unique roles {unique_roles}"
   else:
     policies = dict((role, PolicySpec()) for role in unique_roles)
+    policies_to_train = None
 
     def policy_mapping_fn(aid, *args, **kwargs):
       for role, pids in unique_roles.items():
@@ -226,6 +241,7 @@ if __name__ == "__main__":
   ).multi_agent(
     policies=policies,
     policy_mapping_fn=policy_mapping_fn,
+    policies_to_train=policies_to_train,
     count_steps_by="env_steps",
   ).fault_tolerance(
     recreate_failed_workers=True,
