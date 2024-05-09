@@ -24,18 +24,8 @@ from ray.tune.search.optuna import OptunaSearch
 from examples.rllib import utils
 from reward_transfer.callbacks import LoadPolicyCallback
 
-# Use Tuner.fit() to gridsearch over exchange values
-# Thus I need to stick a custom parameter in the config and hope I can access this in the callback
-# worry about loading pre-training later
-
-LOGGING_LEVEL = "WARN"
+LOGGING_LEVEL = "INFO"
 VERBOSE = 1
-KEEP_CHECKPOINTS_NUM = None  # Default None
-CHECKPOINT_FREQ = 0  # Default 0
-
-EXPLORE_EVAL = False
-# TODO: Fix evaluation at end of training
-EVAL_DURATION = 80
 
 if __name__ == "__main__":
 
@@ -93,6 +83,11 @@ if __name__ == "__main__":
     type=int,
     default=None,
     help="maximum number of concurrent trials to run")
+  parser.add_argument(
+    "--checkpoint_freq",
+    type=int,
+    default=0,
+    help="Checkpoint every this many epochs")
   parser.add_argument(
     "--policy_checkpoint",
     type=str,
@@ -257,12 +252,6 @@ if __name__ == "__main__":
     framework=args.framework,
   ).reporting(
     metrics_num_episodes_for_smoothing=1,
-  ).evaluation(
-    evaluation_interval=None,  # don't evaluate unless we call evaluation()
-    evaluation_config={
-        "explore": EXPLORE_EVAL,
-    },
-    evaluation_duration=EVAL_DURATION,
   ).experimental(
     # will be set to true in future versions of Ray, was True in baselines
     # I don't know how to get this to work though - and I can't use the baselines
@@ -274,8 +263,8 @@ if __name__ == "__main__":
     config = config.callbacks(LoadPolicyCallback)
 
   checkpoint_config = CheckpointConfig(
-      num_to_keep=KEEP_CHECKPOINTS_NUM,
-    checkpoint_frequency=CHECKPOINT_FREQ,
+      num_to_keep=None,
+      checkpoint_frequency=args.checkpoint_freq,
       checkpoint_at_end=True)
 
   if args.optimiser:
