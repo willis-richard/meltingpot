@@ -57,6 +57,8 @@ _ENABLE_DEBUG_OBSERVATIONS = False
 APPLE_RESPAWN_RADIUS = 2.0
 REGROWTH_PROBABILITIES = [0.0, 0.0025, 0.005, 0.025]
 
+SPRITE_SIZE=1
+
 ASCII_MAP = """
 WWWWWWWWWWWWWWWWWWWWWWWW
 WAAA    A      A    AAAW
@@ -304,9 +306,9 @@ def create_scene():
           {
               "component": "StochasticIntervalEpisodeEnding",
               "kwargs": {
-                  "minimumFramesPerEpisode": 1000,
+                  "minimumFramesPerEpisode": 2000,
                   "intervalLength": 100,  # Set equal to unroll length.
-                  "probabilityTerminationPerInterval": 0.15
+                  "probabilityTerminationPerInterval": 1.0
               }
           }
       ]
@@ -552,7 +554,7 @@ def get_config():
       "RGB": specs.OBSERVATION["RGB"],
       "READY_TO_SHOOT": specs.OBSERVATION["READY_TO_SHOOT"],
       # Debug only (do not use the following observations in policies).
-      "WORLD.RGB": specs.rgb(144, 192),
+      "WORLD.RGB": specs.rgb(18 * SPRITE_SIZE, 24 * SPRITE_SIZE),
   })
 
   # The roles assigned to each player.
@@ -575,8 +577,8 @@ def build(
       levelDirectory="meltingpot/lua/levels",
       numPlayers=num_players,
       # Define upper bound of episode length since episodes end stochastically.
-      maxEpisodeLengthFrames=5000,
-      spriteSize=8,
+      maxEpisodeLengthFrames=2000,
+      spriteSize=SPRITE_SIZE,
       topology="BOUNDED",  # Choose from ["BOUNDED", "TORUS"],
       simulation={
           "map": ASCII_MAP,
