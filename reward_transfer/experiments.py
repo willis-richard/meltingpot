@@ -102,10 +102,11 @@ if __name__ == "__main__":
     "--training",
     type=str,
     default="self-play",
-    choices=["self-play", "independent", "random"],
+    choices=["self-play", "independent", "random", "single"],
     help="""self-play: all players share the same policy
     independent: use n policies
-    random: only player_0 is a policy, the other agents are random""")
+    random: only player_0 is a policy, the other agents are random
+    single: only one player in the environment""")
   parser.add_argument(
     "--reward_transfer",
     type=float,
@@ -135,6 +136,8 @@ if __name__ == "__main__":
   num_players = len(substrate_config.default_player_roles)
   if args.training == "random":
     player_roles = ("default",) + ("random",) * (num_players - 1)
+  elif args.training == "single":
+    player_roles = (substrate_config.default_player_roles[0],)
   else:
     player_roles = substrate_config.default_player_roles
 
