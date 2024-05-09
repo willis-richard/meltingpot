@@ -231,7 +231,7 @@ if __name__ == "__main__":
   ).rollouts(
     batch_mode="complete_episodes",
     num_rollout_workers=args.rollout_workers,
-    rollout_fragment_length=100,
+    rollout_fragment_length=400,
     num_envs_per_worker=args.envs_per_worker,
   ).multi_agent(
     policies=policies,
@@ -269,7 +269,7 @@ if __name__ == "__main__":
 
   if args.optimiser:
     config = config.training(
-      sgd_minibatch_size=tune.qrandint(10000, 30000, 10000),
+      sgd_minibatch_size=tune.qrandint(2000, 20000, 2000),
       num_sgd_iter=tune.qlograndint(5, 20, 1),
       lr=tune.qloguniform(1e-5, 1e-3, 1e-5),
       lambda_=tune.quniform(0.9, 1.0, 0.05),
@@ -291,10 +291,6 @@ if __name__ == "__main__":
     search_alg = OptunaSearch(
       metric="episode_reward_mean",
       mode="max",
-      points_to_evaluate=[
-        {"sgd_minibatch_size": 20000, "num_sgd_iter": 12, "lr": 0.000126, "lambda": 0.95, "vf_loss_coeff": 0.7, "clip_param": 0.25, "vf_clip_param": 2},
-        {"sgd_minibatch_size": 10000, "num_sgd_iter": 13, "lr": 0.000217, "lambda": 0.90, "vf_loss_coeff": 0.7, "clip_param": 0.25, "vf_clip_param": 5},
-      ],
     )
 
     def trial_name_string(trial: ray.tune.experiment.Trial):
