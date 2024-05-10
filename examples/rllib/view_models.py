@@ -93,10 +93,11 @@ def main():
     "--training",
     type=str,
     default="self-play",
-    choices=["self-play", "independent", "random"],
+    choices=["self-play", "independent", "random", "single"],
     help="""self-play: all players share the same policy
     independent: use n policies
-    random: only player_0 is a policy, the other agents are random""")
+    random: only player_0 is a policy, the other agents are random
+    single: only one player in the environment""")
 
   args = parser.parse_args()
 
@@ -143,6 +144,8 @@ def main():
 
   if args.training == "independent":
     policies = env._ordered_agent_ids
+  elif args.training == "single":
+    policies = ["default"]
   elif args.training == "random":
     policies = ["default"] + ["random"] * (num_players - 1)
   else:

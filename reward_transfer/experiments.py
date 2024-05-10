@@ -273,12 +273,12 @@ if __name__ == "__main__":
   if args.optimiser:
     config = config.training(
       sgd_minibatch_size=tune.qrandint(2000, 20000, 2000),
-      num_sgd_iter=tune.qlograndint(5, 20, 1),
+      num_sgd_iter=tune.qrandint(5, 15, 1),
       lr=tune.qloguniform(1e-5, 1e-3, 1e-5),
       lambda_=tune.quniform(0.9, 1.0, 0.05),
       vf_loss_coeff=tune.quniform(0.5, 1, 0.1),
       clip_param=tune.quniform(0.1, 0.5, 0.05),
-      vf_clip_param=tune.qlograndint(1, 20, 1),
+      vf_clip_param=tune.qlograndint(1, 10, 1),
     )
 
     scheduler = ASHAScheduler(
@@ -307,13 +307,13 @@ if __name__ == "__main__":
     mode = None
   else:
     config = config.training(
-      sgd_minibatch_size=min(20000, train_batch_size),
-      num_sgd_iter=12,
-      lr=1e-5,
-      lambda_=0.925,
-      vf_loss_coeff=0.75,
-      clip_param=0.25,
-      vf_clip_param=5,
+      sgd_minibatch_size=min(10000, train_batch_size),
+      num_sgd_iter=9,
+      lr=5e-4,
+      lambda_=0.95,
+      vf_loss_coeff=0.9,
+      clip_param=0.3,
+      vf_clip_param=2,
     )
 
     metric = "episode_reward_mean"
