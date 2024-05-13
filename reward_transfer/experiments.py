@@ -307,13 +307,13 @@ if __name__ == "__main__":
     mode = None
   else:
     config = config.training(
-      sgd_minibatch_size=min(10000, train_batch_size),
+      sgd_minibatch_size=min(7500, train_batch_size),
       num_sgd_iter=9,
-      lr=5e-4,
+      lr=2e-4,
       lambda_=0.95,
       vf_loss_coeff=0.9,
-      clip_param=0.3,
-      vf_clip_param=2,
+      clip_param=0.33,
+      vf_clip_param=5,
     )
 
     metric = "episode_reward_mean"

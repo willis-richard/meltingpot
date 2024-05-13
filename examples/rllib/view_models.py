@@ -85,6 +85,11 @@ def main():
       default=8,
       help="Frames per second (default 8)")
   parser.add_argument(
+      "--timesteps",
+      type=int,
+      default=500,
+      help="Number of timesteps to run the epsiode for")
+  parser.add_argument(
       "--substrate",
       type=str,
       default=None,
@@ -180,7 +185,7 @@ def main():
   states = [bot.initial_state() for bot in bots]
   actions = [0] * len(bots)
 
-  for _ in range(500):
+  for _ in range(args.timesteps):
     obs = timestep.observation[0]["WORLD.RGB"]
     obs = np.transpose(obs, (1, 0, 2))
     surface = pygame.surfarray.make_surface(obs)
