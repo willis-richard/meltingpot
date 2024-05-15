@@ -157,26 +157,28 @@ if __name__ == "__main__":
 
   base_env = utils.env_creator(env_config)
 
-  unique_roles: Dict[str, list] = defaultdict(list)
-  for i, (role, pid) in enumerate(zip(player_roles, base_env._ordered_agent_ids)):
-    unique_roles[role].append(pid)
-
   if args.training == "independent":
     policies = dict((aid, PolicySpec()) for aid in base_env._ordered_agent_ids)
     policies_to_train = None
 
     def policy_mapping_fn(aid, *args, **kwargs):
       return aid
+
   elif args.training == "random":
     policies = {"default": PolicySpec(), "random": PolicySpec(RandomPolicy)}
     policies_to_train = ["default"]
 
-    def policy_mapping_fn(aid, *args, **kwargs):
-      for role, pids in unique_roles.items():
-        if aid in pids:
-          return role
-      assert False, f"Agent id {aid} not found in unique roles {unique_roles}"
-  else:
+    def policy_mapping_fn(aid, episode, n=num_players  *args, **kwargs):
+      if episode.episode_id % n == int(aid.split("_")[1]):
+        return "default"
+      return "random"
+
+  else:  # self-play or single agent
+    unique_roles: Dict[str, list] = defaultdict(list)
+    for i, (role, pid) in enumerate(zip(player_roles, base_env._ordered_agent_ids)):
+      unique_roles[role].append(pid)
+
+
     policies = dict((role, PolicySpec()) for role in unique_roles)
     policies_to_train = None
 
@@ -308,12 +310,12 @@ if __name__ == "__main__":
   else:
     config = config.training(
       sgd_minibatch_size=min(7500, train_batch_size),
-      num_sgd_iter=9,
-      lr=2e-4,
+      num_sgd_iter=8,
+      lr=1e-4,
       lambda_=0.95,
       vf_loss_coeff=0.9,
       clip_param=0.33,
-      vf_clip_param=5,
+      vf_clip_param=2,
     )
 
     metric = "episode_reward_mean"
