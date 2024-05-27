@@ -298,7 +298,7 @@ if __name__ == "__main__":
       mode="max",
     )
 
-    def trial_name_string(trial: ray.tune.experiment.Trial):
+    def custom_trial_name_creator(trial: ray.tune.experiment.Trial) -> str:
       """Create a custom name that includes hyperparameters."""
       attributes = ["sgd_minibatch_size", "num_sgd_iter", "lr", "lambda",
                     "vf_loss_coeff", "clip_param", "vf_clip_param"]
@@ -322,7 +322,12 @@ if __name__ == "__main__":
     mode = "max"
     search_alg = None
     scheduler = None
-    trial_name_string = None
+
+    def custom_trial_name_creator(trial: ray.tune.experiment.Trial) -> str:
+      trial_name = f"{trial.trainable_name}_{trial.trial_id}_{args.training}"
+      trial_name += "pre-trained_" if args.policy_checkpoint else "None_"
+      trial_name += f"{args.reward_transfer:.3f}"
+      return trial_name
 
 
   tune_callbacks = [
@@ -332,13 +337,10 @@ if __name__ == "__main__":
           log_config=False)
   ] if args.wandb is not None else None
 
-  name = "{args.substrate}_{args.training}_"
-  name += "pre-trained_" if args.policy_checkpoint else "None_"
-  name += f"{args.reward_transfer:.3f}"
 
   experiment = tune.run(
     run_or_experiment="PPO",
-    name=name,
+    name=args.substrate,
     metric=metric,
     mode=mode,
     stop={"training_iteration": args.n_iterations},
@@ -349,7 +351,7 @@ if __name__ == "__main__":
     scheduler=scheduler,
     checkpoint_config=checkpoint_config,
     verbose=VERBOSE,
-    trial_name_creator=trial_name_string,
+    trial_name_creator=custom_trial_name_creator,
     log_to_file=False,
     callbacks=tune_callbacks,
     max_concurrent_trials=args.max_concurrent_trials,
