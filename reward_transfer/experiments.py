@@ -332,9 +332,13 @@ if __name__ == "__main__":
           log_config=False)
   ] if args.wandb is not None else None
 
+  name = "{args.substrate}_{args.training}_"
+  name += "pre-trained_" if args.policy_checkpoint else "None_"
+  name += f"{args.reward_transfer:.3f}"
+
   experiment = tune.run(
     run_or_experiment="PPO",
-    name=args.substrate,
+    name=name,
     metric=metric,
     mode=mode,
     stop={"training_iteration": args.n_iterations},
