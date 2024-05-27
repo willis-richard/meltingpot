@@ -110,7 +110,7 @@ if __name__ == "__main__":
   parser.add_argument(
     "--reward_transfer",
     type=float,
-    default=None,
+    default=0,
     help="Self-interest of the agents")
   parser.add_argument(
     "--resume",
@@ -219,9 +219,9 @@ if __name__ == "__main__":
   train_batch_size = max(1,
                          args.rollout_workers) * args.envs_per_worker * horizon * args.episodes_per_worker
 
-  if args.reward_transfer:
+  if args.reward_transfer != 0:
     assert num_players > 1, "reward transfer requires 2+ agents"
-    assert 0 <= args.reward_transfer <= 1, "reward transfer value must be in the interval [0,1]"
+    assert 0 < args.reward_transfer <= 1, "reward transfer value must be in the interval [0,1]"
     aids = base_env._ordered_agent_ids
     off_diag_val = (1 - args.reward_transfer) / (num_players - 1)
     rtm = np.full((num_players, num_players), off_diag_val)
@@ -325,8 +325,8 @@ if __name__ == "__main__":
 
     def custom_trial_name_creator(trial: ray.tune.experiment.Trial) -> str:
       trial_name = f"{trial.trainable_name}_{trial.trial_id}_{args.training}"
-      trial_name += "pre-trained_" if args.policy_checkpoint else "None_"
-      trial_name += f"{args.reward_transfer:.3f}"
+      trial_name += "_pre-trained" if args.policy_checkpoint else "_None"
+      trial_name += f"_{args.reward_transfer:.3f}"
       return trial_name
 
 
