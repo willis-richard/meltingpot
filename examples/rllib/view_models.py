@@ -30,6 +30,7 @@ from examples.rllib.utils import env_creator, RayModelPolicy
 
 
 class RandomBot:
+
   def __init__(self, action_space):
     self.action_space = action_space
 
@@ -62,6 +63,7 @@ def get_human_action():
       break  # removing this did not solve the bug
   return a
 
+
 def main():
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument(
@@ -80,10 +82,7 @@ def main():
   parser.add_argument(
       "--human", action="store_true", help="a human controls one of the bots")
   parser.add_argument(
-      "--fps",
-      type=int,
-      default=8,
-      help="Frames per second (default 8)")
+      "--fps", type=int, default=8, help="Frames per second (default 8)")
   parser.add_argument(
       "--timesteps",
       type=int,
@@ -95,11 +94,11 @@ def main():
       default=None,
       help="Use this substrate instead of the original")
   parser.add_argument(
-    "--training",
-    type=str,
-    default="self-play",
-    choices=["self-play", "independent", "random", "single"],
-    help="""self-play: all players share the same policy
+      "--training",
+      type=str,
+      default="self-play",
+      choices=["self-play", "independent", "random", "single"],
+      help="""self-play: all players share the same policy
     independent: use n policies
     random: only player_0 is a policy, the other agents are random
     single: only one player in the environment""")
@@ -115,10 +114,7 @@ def main():
       default_metric="episode_reward_mean",
       default_mode="max")
 
-  if args.checkpoint:
-    checkpoint_path = args.checkpoint
-  else:
-    checkpoint_path = experiment.best_checkpoint
+  checkpoint_path = args.checkpoint if args.checkpoint is not None else experiment.best_checkpoint
 
   config = experiment.best_config
 
@@ -158,12 +154,10 @@ def main():
 
   bots = [
       RayModelPolicy(
-        trainer,
-        env_config["substrate_config"]["individual_observation_names"],
-        policy)
-    if policy != "random" else
-      RandomBot(action_space)
-    for policy in policies
+          trainer,
+          env_config["substrate_config"]["individual_observation_names"],
+          policy) if policy != "random" else RandomBot(action_space)
+      for policy in policies
   ]
   bots = bots[1:] if args.human else bots
 

@@ -230,6 +230,7 @@ if __name__ == "__main__":
     env_config["rtm"] = rtm
 
   config = PPOConfig().training(
+    gamma=0.999,
     model=DEFAULT_MODEL,
     train_batch_size=train_batch_size,
     entropy_coeff=1e-3,
@@ -311,7 +312,7 @@ if __name__ == "__main__":
     config = config.training(
       sgd_minibatch_size=min(7500, train_batch_size),
       num_sgd_iter=8,
-      lr=1e-4,
+      lr=3e-4,
       lambda_=0.95,
       vf_loss_coeff=0.9,
       clip_param=0.33,
