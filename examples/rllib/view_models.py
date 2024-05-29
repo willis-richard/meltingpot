@@ -17,6 +17,7 @@ Runs the bots trained in self_play_train.py and renders in pygame.
 
 import argparse
 
+import cv2
 import dm_env
 from dmlab2d.ui_renderer import pygame
 from ml_collections.config_dict import ConfigDict
@@ -94,6 +95,11 @@ def main():
       default=None,
       help="Use this substrate instead of the original")
   parser.add_argument(
+      "--video",
+      type=str,
+      default=None,
+      help="Save the recording at this filepath")
+  parser.add_argument(
       "--training",
       type=str,
       default="self-play",
@@ -169,10 +175,15 @@ def main():
   pygame.init()
   scale = 1000 // max(int(shape[0]), int(shape[1]))
   fps = args.fps
-  game_display = pygame.display.set_mode(
-      (int(shape[1] * scale), int(shape[0] * scale)))
+  frame_size = (int(shape[1] * scale), int(shape[0] * scale))
+  game_display = pygame.display.set_mode(frame_size)
   clock = pygame.time.Clock()
   pygame.display.set_caption("DM Lab2d")
+
+  if args.video:
+    # Video recording setup
+    fourcc = cv2.VideoWriter_fourcc(*"XVID")
+    out = cv2.VideoWriter(args.video, fourcc, fps, frame_size)
 
   total_rewards = np.zeros(num_players)
   timestep = env.reset()
@@ -189,6 +200,15 @@ def main():
 
     game_display.blit(surf, dest=(0, 0))
     pygame.display.update()
+
+    if args.video:
+      # Capture the frame for recording
+      frame = pygame.surfarray.array3d(game_display)
+      frame = cv2.transpose(frame)
+      # frame = cv2.flip(frame, 0)
+      frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+      out.write(frame)
+
     clock.tick(fps)
 
     if args.human:
@@ -216,7 +236,12 @@ def main():
     print(actions + human_action, timestep.reward)
     total_rewards = total_rewards + timestep.reward
 
-  print("Total rewards: {}".format(total_rewards))
+  print(f"Total rewards: {total_rewards}")
+
+  pygame.quit()
+  if args.video:
+    out.release()
+    cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":
