@@ -8,8 +8,6 @@ from typing import Dict
 
 from meltingpot import substrate
 from ml_collections.config_dict import ConfigDict
-import numpy as np
-import pandas as pd
 import ray
 from ray import tune
 from ray.air import CheckpointConfig
@@ -77,7 +75,8 @@ if __name__ == "__main__":
     "--episodes_per_worker",
     type=int,
     default=1,
-    help="Number of episodes per each worker in a training batch (not including parallelism)")
+    help="Number of episodes per each worker in a training batch"
+    " (not including parallelism)")
   parser.add_argument(
     "--max_concurrent_trials",
     type=int,
@@ -219,21 +218,26 @@ if __name__ == "__main__":
   train_batch_size = max(1,
                          args.rollout_workers) * args.envs_per_worker * horizon * args.episodes_per_worker
 
-  if args.reward_transfer != 0:
+  if args.optimiser:
+    env_config["self-interest"] = tune.quniform(0.14, 1.0, 0.01)
+  elif args.reward_transfer != 0:
     assert num_players > 1, "reward transfer requires 2+ agents"
     assert 0 < args.reward_transfer <= 1, "reward transfer value must be in the interval [0,1]"
-    aids = base_env._ordered_agent_ids
-    off_diag_val = (1 - args.reward_transfer) / (num_players - 1)
-    rtm = np.full((num_players, num_players), off_diag_val)
-    np.fill_diagonal(rtm, args.reward_transfer)
-    rtm = pd.DataFrame(data=rtm, index=aids, columns=aids, dtype=float)
-    env_config["rtm"] = rtm
+    env_config["self-interest"] = args.reward_transfer
+
 
   config = PPOConfig().training(
     gamma=0.999,
-    model=DEFAULT_MODEL,
+    lr=3e-4,
     train_batch_size=train_batch_size,
+    model=DEFAULT_MODEL,
+    lambda_=0.95,
+    sgd_minibatch_size=min(7500, train_batch_size),
+    num_sgd_iter=8,
+    vf_loss_coeff=0.9,
     entropy_coeff=1e-3,
+    clip_param=0.33,
+    vf_clip_param=2,
   ).rollouts(
     batch_mode="complete_episodes",
     num_rollout_workers=args.rollout_workers,
@@ -275,13 +279,21 @@ if __name__ == "__main__":
 
   if args.optimiser:
     config = config.training(
-      sgd_minibatch_size=tune.qrandint(2000, 20000, 2000),
-      num_sgd_iter=tune.qrandint(5, 15, 1),
-      lr=tune.qloguniform(1e-5, 1e-3, 1e-5),
-      lambda_=tune.quniform(0.9, 1.0, 0.05),
-      vf_loss_coeff=tune.quniform(0.5, 1, 0.1),
-      clip_param=tune.quniform(0.1, 0.5, 0.05),
-      vf_clip_param=tune.qlograndint(1, 10, 1),
+      # sgd_minibatch_size=tune.qrandint(2000, 20000, 2000),
+      # num_sgd_iter=tune.qrandint(5, 15, 1),
+      lr=tune.qloguniform(5e-5, 5e-4, 1e-5),
+      # lambda_=tune.quniform(0.9, 1.0, 0.05),
+      # vf_loss_coeff=tune.quniform(0.5, 1, 0.1),
+      # clip_param=tune.quniform(0.1, 0.5, 0.05),
+      # vf_clip_param=tune.qlograndint(1, 10, 1),
+    )
+
+    metric = None
+    mode = None
+
+    search_alg = OptunaSearch(
+      metric="episode_reward_mean",
+      mode="max",
     )
 
     scheduler = ASHAScheduler(
@@ -294,31 +306,20 @@ if __name__ == "__main__":
         brackets=1,
     )
 
-    search_alg = OptunaSearch(
-      metric="episode_reward_mean",
-      mode="max",
-    )
-
     def custom_trial_name_creator(trial: ray.tune.experiment.Trial) -> str:
       """Create a custom name that includes hyperparameters."""
-      attributes = ["sgd_minibatch_size", "num_sgd_iter", "lr", "lambda",
-                    "vf_loss_coeff", "clip_param", "vf_clip_param"]
+      trial_name = f"{trial.trainable_name}_{trial.trial_id}_{args.training}"
+      trial_name += "_pre-trained" if args.policy_checkpoint else "_None"
+      trial_name += f"_{trial.config['env_config']['self-interest']:.3f}"
+
+      # attributes = ["sgd_minibatch_size", "num_sgd_iter", "lr", "lambda",
+      #               "vf_loss_coeff", "clip_param", "vf_clip_param"]
+      attributes = ["lr"]
       attributes_str = [f"{trial.config[a]:.5f}".rstrip("0").rstrip(".") for a in attributes]
-      return f"{trial.trainable_name}_{trial.trial_id}_{','.join(attributes_str)}"
+      trial_name += f"_{','.join(attributes_str)}"
+      return trial_name
 
-    metric = None
-    mode = None
   else:
-    config = config.training(
-      sgd_minibatch_size=min(7500, train_batch_size),
-      num_sgd_iter=8,
-      lr=3e-4,
-      lambda_=0.95,
-      vf_loss_coeff=0.9,
-      clip_param=0.33,
-      vf_clip_param=2,
-    )
-
     metric = "episode_reward_mean"
     mode = "max"
     search_alg = None
@@ -327,7 +328,7 @@ if __name__ == "__main__":
     def custom_trial_name_creator(trial: ray.tune.experiment.Trial) -> str:
       trial_name = f"{trial.trainable_name}_{trial.trial_id}_{args.training}"
       trial_name += "_pre-trained" if args.policy_checkpoint else "_None"
-      trial_name += f"_{args.reward_transfer:.3f}"
+      trial_name += f"_{trial.config['env_config']['self-interest']:.3f}"
       return trial_name
 
 

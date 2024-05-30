@@ -22,6 +22,7 @@ from meltingpot import substrate
 from meltingpot.utils.policies import policy
 from ml_collections.config_dict import ConfigDict
 import numpy as np
+import pandas as pd
 from ray.rllib import algorithms
 from ray.rllib.env import multi_agent_env
 from ray.rllib.policy import Policy, sample_batch
@@ -68,9 +69,15 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
     self._action_space_in_preferred_format = True
     self._obs_space_in_preferred_format = True
 
-    rtm = env_config.get("rtm")
-    if rtm is not None:
-      assert (rtm.index == self._ordered_agent_ids).all(), "Specify the reward_transfer for all agents"
+    self_interest = env_config.get("self-interest")
+    if self_interest is not None:
+      off_diag_val = (1 - self_interest) / (self._num_players - 1)
+      rtm = np.full((self._num_players, self._num_players), off_diag_val)
+      np.fill_diagonal(rtm, self_interest)
+      rtm = pd.DataFrame(data=rtm,
+                        index=self._ordered_agent_ids,
+                        columns=self._ordered_agent_ids,
+                        dtype=float)
       self._rtm = rtm
     else:
       self._rtm = None
