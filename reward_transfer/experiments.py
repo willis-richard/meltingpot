@@ -137,6 +137,7 @@ if __name__ == "__main__":
     player_roles = ("default",) + ("random",) * (num_players - 1)
   elif args.training == "single":
     player_roles = (substrate_config.default_player_roles[0],)
+    num_players = 1
   else:
     player_roles = substrate_config.default_player_roles
 
