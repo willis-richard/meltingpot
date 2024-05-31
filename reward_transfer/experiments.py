@@ -218,7 +218,7 @@ if __name__ == "__main__":
   train_batch_size = max(1,
                          args.rollout_workers) * args.envs_per_worker * horizon * args.episodes_per_worker
 
-  if args.optimiser:
+  if args.optimiser and num_players > 1:
     env_config["self-interest"] = tune.quniform(0.14, 1.0, 0.01)
   elif args.reward_transfer != 0:
     assert num_players > 1, "reward transfer requires 2+ agents"
@@ -279,12 +279,12 @@ if __name__ == "__main__":
 
   if args.optimiser:
     config = config.training(
-      # sgd_minibatch_size=tune.qrandint(2000, 20000, 2000),
-      # num_sgd_iter=tune.qrandint(5, 15, 1),
+      sgd_minibatch_size=tune.qrandint(5000, 10000, 2500),
+      num_sgd_iter=tune.qrandint(6, 12, 2),
       lr=tune.qloguniform(5e-5, 5e-4, 1e-5),
-      # lambda_=tune.quniform(0.9, 1.0, 0.05),
-      # vf_loss_coeff=tune.quniform(0.5, 1, 0.1),
-      # clip_param=tune.quniform(0.1, 0.5, 0.05),
+      lambda_=tune.quniform(0.92, 1.0, 0.01),
+      vf_loss_coeff=tune.quniform(0.8, 1, 0.05),
+      clip_param=tune.quniform(0.25, 0.4, 0.05),
       # vf_clip_param=tune.qlograndint(1, 10, 1),
     )
 
@@ -310,11 +310,11 @@ if __name__ == "__main__":
       """Create a custom name that includes hyperparameters."""
       trial_name = f"{trial.trainable_name}_{trial.trial_id}_{args.training}"
       trial_name += "_pre-trained" if args.policy_checkpoint else "_None"
-      trial_name += f"_{trial.config['env_config']['self-interest']:.3f}"
+      if num_players > 1:
+        trial_name += f"_{trial.config['env_config']['self-interest']:.3f}"
 
-      # attributes = ["sgd_minibatch_size", "num_sgd_iter", "lr", "lambda",
-      #               "vf_loss_coeff", "clip_param", "vf_clip_param"]
-      attributes = ["lr"]
+      attributes = ["sgd_minibatch_size", "num_sgd_iter", "lr", "lambda",
+                    "vf_loss_coeff", "clip_param"]
       attributes_str = [f"{trial.config[a]:.5f}".rstrip("0").rstrip(".") for a in attributes]
       trial_name += f"_{','.join(attributes_str)}"
       return trial_name
@@ -328,7 +328,8 @@ if __name__ == "__main__":
     def custom_trial_name_creator(trial: ray.tune.experiment.Trial) -> str:
       trial_name = f"{trial.trainable_name}_{trial.trial_id}_{args.training}"
       trial_name += "_pre-trained" if args.policy_checkpoint else "_None"
-      trial_name += f"_{trial.config['env_config']['self-interest']:.3f}"
+      if num_players > 1:
+        trial_name += f"_{trial.config['env_config']['self-interest']:.3f}"
       return trial_name
 
 
