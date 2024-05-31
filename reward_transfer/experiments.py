@@ -13,7 +13,7 @@ from ray import tune
 from ray.air import CheckpointConfig
 from ray.air.integrations.wandb import WandbLoggerCallback
 from ray.rllib.algorithms.ppo import PPOConfig
-from ray.rllib.examples.policy.random_policy import RandomPolicy
+from ray.rllib.examples._old_api_stack.policy.random_policy import RandomPolicy
 from ray.rllib.policy.policy import PolicySpec
 from ray.tune.registry import register_env
 from ray.tune.schedulers import ASHAScheduler
@@ -250,8 +250,8 @@ if __name__ == "__main__":
     policies_to_train=policies_to_train,
     count_steps_by="env_steps",
   ).fault_tolerance(
-    recreate_failed_workers=True,
-    num_consecutive_worker_failures_tolerance=3,
+    recreate_failed_env_runners=True,
+    num_consecutive_env_runner_failures_tolerance=3,
   ).environment(
     env="meltingpot",
     env_config=env_config,
@@ -267,7 +267,10 @@ if __name__ == "__main__":
     # will be set to true in future versions of Ray, was True in baselines
     # I don't know how to get this to work though - and I can't use the baselines
     # policy wrapper either without it
-  _disable_preprocessor_api=False)
+    _disable_preprocessor_api=False
+  ).api_stack(
+    enable_rl_module_and_learner=False  # does not work with tf
+  )
 
   if args.policy_checkpoint:
     config["policy_checkpoint"] = args.policy_checkpoint
@@ -293,13 +296,13 @@ if __name__ == "__main__":
     mode = None
 
     search_alg = OptunaSearch(
-      metric="episode_reward_mean",
+      metric="env_runners/episode_reward_mean",
       mode="max",
     )
 
     scheduler = ASHAScheduler(
         time_attr="training_iteration",
-        metric="episode_reward_mean",
+        metric="env_runners/episode_reward_mean",
         mode="max",
         max_t=args.n_iterations,
         grace_period=max(1, args.n_iterations // 2),
@@ -321,7 +324,7 @@ if __name__ == "__main__":
       return trial_name
 
   else:
-    metric = "episode_reward_mean"
+    metric = "env_runners/episode_reward_mean"
     mode = "max"
     search_alg = None
     scheduler = None

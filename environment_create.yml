@@ -6,7 +6,7 @@ dependencies:
 
   # framework
   ## if tf:
-  - tensorflow  # ==2.14.0  # installing the same as the module load version
+  - tensorflow==2.15.0  # ==2.14.0  # installing the same as the module load version
   ## else if torch
   # - pytorch>=2.0.0
   # - torchvision>=0.15.2
@@ -34,7 +34,7 @@ dependencies:
   - reactivex
 
   # reward_transfer deps
-  - ray-rllib==2.10.0  # ==2.8.1  # or 2.9.0, this is the latest that works with the tensorflow version available
+  - ray-rllib==2.23.0  # ==2.8.1  # or 2.9.0, this is the latest that works with the tensorflow version available
   - optuna
   - wandb
   # - pandas
