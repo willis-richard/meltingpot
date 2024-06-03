@@ -107,9 +107,9 @@ if __name__ == "__main__":
     random: only player_0 is a policy, the other agents are random
     single: only one player in the environment""")
   parser.add_argument(
-    "--reward_transfer",
+    "--self_interest",
     type=float,
-    default=0,
+    default=1,
     help="Self-interest of the agents")
   parser.add_argument(
     "--resume",
@@ -221,10 +221,10 @@ if __name__ == "__main__":
 
   if args.optimiser and num_players > 1:
     env_config["self-interest"] = tune.quniform(0.14, 1.0, 0.01)
-  elif args.reward_transfer != 0:
+  elif args.self_interest != 1:
     assert num_players > 1, "reward transfer requires 2+ agents"
-    assert 0 < args.reward_transfer <= 1, "reward transfer value must be in the interval [0,1]"
-    env_config["self-interest"] = args.reward_transfer
+    assert 0 < args.self_interest <= 1, "self-interest value must be in the interval [0,1]"
+    env_config["self-interest"] = args.self_interest
 
 
   config = PPOConfig().training(
@@ -314,8 +314,10 @@ if __name__ == "__main__":
       """Create a custom name that includes hyperparameters."""
       trial_name = f"{trial.trainable_name}_{trial.trial_id}_{args.training}"
       trial_name += "_pre-trained" if args.policy_checkpoint else "_None"
-      if num_players > 1:
-        trial_name += f"_{trial.config['env_config']['self-interest']:.3f}"
+
+      self_interest = trial.config["env_config"].get("self-interest")
+      if self_interest is not None:
+        trial_name += f"_{self_interest:.3f}"
 
       attributes = ["sgd_minibatch_size", "num_sgd_iter", "lr", "lambda",
                     "vf_loss_coeff", "clip_param"]
@@ -332,8 +334,11 @@ if __name__ == "__main__":
     def custom_trial_name_creator(trial: ray.tune.experiment.Trial) -> str:
       trial_name = f"{trial.trainable_name}_{trial.trial_id}_{args.training}"
       trial_name += "_pre-trained" if args.policy_checkpoint else "_None"
-      if num_players > 1:
-        trial_name += f"_{trial.config['env_config']['self-interest']:.3f}"
+
+      self_interest = trial.config["env_config"].get("self-interest")
+      if self_interest is not None:
+        trial_name += f"_{self_interest:.3f}"
+
       return trial_name
 
 
