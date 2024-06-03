@@ -229,15 +229,15 @@ if __name__ == "__main__":
 
   config = PPOConfig().training(
     gamma=0.999,
-    lr=3e-4,
+    lr=7e-5,
     train_batch_size=train_batch_size,
     model=DEFAULT_MODEL,
-    lambda_=0.95,
-    sgd_minibatch_size=min(7500, train_batch_size),
-    num_sgd_iter=8,
-    vf_loss_coeff=0.9,
+    lambda_=0.99,
+    sgd_minibatch_size=min(10000, train_batch_size),
+    num_sgd_iter=12,
+    vf_loss_coeff=0.8,
     entropy_coeff=1e-3,
-    clip_param=0.33,
+    clip_param=0.32,
     vf_clip_param=2,
   ).rollouts(
     batch_mode="complete_episodes",
@@ -284,11 +284,11 @@ if __name__ == "__main__":
   if args.optimiser:
     config = config.training(
       sgd_minibatch_size=tune.qrandint(5000, 10000, 2500),
-      num_sgd_iter=tune.qrandint(6, 12, 2),
-      lr=tune.qloguniform(5e-5, 5e-4, 1e-5),
-      lambda_=tune.quniform(0.92, 1.0, 0.01),
-      vf_loss_coeff=tune.quniform(0.8, 1, 0.05),
-      clip_param=tune.quniform(0.25, 0.4, 0.05),
+      num_sgd_iter=tune.qrandint(8, 14, 2),
+      lr=tune.qloguniform(5e-5, 3e-4, 1e-5),
+      lambda_=tune.quniform(0.95, 1.0, 0.01),
+      vf_loss_coeff=tune.quniform(0.75, 1, 0.05),
+      clip_param=tune.quniform(0.28, 0.36, 0.02),
       # vf_clip_param=tune.qlograndint(1, 10, 1),
     )
 

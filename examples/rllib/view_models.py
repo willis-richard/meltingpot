@@ -117,7 +117,7 @@ def main():
 
   experiment = ExperimentAnalysis(
       args.experiment_state,
-      default_metric="episode_reward_mean",
+      default_metric="env_runners/episode_reward_mean",
       default_mode="max")
 
   checkpoint_path = args.checkpoint if args.checkpoint is not None else experiment.best_checkpoint
