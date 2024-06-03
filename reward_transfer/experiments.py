@@ -168,7 +168,7 @@ if __name__ == "__main__":
     policies = {"default": PolicySpec(), "random": PolicySpec(RandomPolicy)}
     policies_to_train = ["default"]
 
-    def policy_mapping_fn(aid, episode, n=num_players  *args, **kwargs):
+    def policy_mapping_fn(aid, episode, n=num_players, *args, **kwargs):
       if episode.episode_id % n == int(aid.split("_")[1]):
         return "default"
       return "random"
