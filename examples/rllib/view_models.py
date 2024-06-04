@@ -137,6 +137,7 @@ def main():
     env_config = ConfigDict({
         "substrate": args.substrate,
         "substrate_config": substrate_config,
+        # FIXME: Get roles from the training
         "roles": substrate_config["default_player_roles"],
         "scaled": 1
     })

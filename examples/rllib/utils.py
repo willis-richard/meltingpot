@@ -43,9 +43,10 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
       env_config: An environment config
     """
     substrate_config = env_config["substrate_config"]
+    roles = env_config["roles"]
+
     self._individual_obs = substrate_config["individual_observation_names"]
-    self._env = substrate.build_from_config(substrate_config,
-                                            roles=env_config["roles"])
+    self._env = substrate.build_from_config(substrate_config, roles=roles)
 
     self._num_players = len(self._env.observation_spec())
     self._ordered_agent_ids = [
