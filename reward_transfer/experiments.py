@@ -63,8 +63,8 @@ if __name__ == "__main__":
     type=int,
     required=True,
     help="Number of rollout workers, should be in [0,num_cpus]")
-  parser.add_argument(
-    "--num_samples", type=int, default=1, help="Number of samples to run")
+  # parser.add_argument(
+  #   "--num_samples", type=int, default=1, help="Number of samples to run")
   parser.add_argument(
     "--envs_per_worker",
     type=int,
@@ -97,30 +97,9 @@ if __name__ == "__main__":
     default=None,
     help="wandb project name")
   parser.add_argument(
-    "--training",
-    type=str,
-    default="self-play",
-    choices=["self-play", "independent"],
-    help="""self-play: all players share the same policy
-    independent: use n policies""")
-  parser.add_argument(
-    "--self_interest",
-    type=float,
-    default=1,
-    help="Self-interest of the agents")
-  parser.add_argument(
-    "--num_players",
-    type=int,
-    default=1,
-    help="Number of players in the environment")
-  parser.add_argument(
     "--resume",
     action="store_true",
     help="Resume the last trial with name/local_dir")
-  parser.add_argument(
-    "--optimiser",
-    action="store_true",
-    help="Use an optimiser for hyper parameter tuning")
 
   args = parser.parse_args()
 
@@ -192,13 +171,15 @@ if __name__ == "__main__":
     entropy_coeff=1e-3,
     clip_param=0.32,
     vf_clip_param=2,
-    rollout_fragment_length=400,
   ).env_runners(
     num_env_runners=args.rollout_workers,
     num_envs_per_env_runner=args.envs_per_worker,
+    rollout_fragment_length=400,
     batch_mode="complete_episodes",
     # observation_filter="MeanStdFilter",
   ).multi_agent(
+    policies={"default": PolicySpec()},
+    policy_mapping_fn=lambda aid, *args, **kwargs: "default",
     count_steps_by="env_steps",
   ).fault_tolerance(
     recreate_failed_env_runners=True,
@@ -215,92 +196,23 @@ if __name__ == "__main__":
     metrics_num_episodes_for_smoothing=1,
   )
 
-  if args.optimiser:
-    config = config.training(
-      sgd_minibatch_size=tune.qrandint(5000, 10000, 2500),
-      num_sgd_iter=tune.qrandint(8, 14, 2),
-      lr=tune.qloguniform(5e-5, 3e-4, 1e-5),
-      lambda_=tune.quniform(0.95, 1.0, 0.01),
-      vf_loss_coeff=tune.quniform(0.75, 1, 0.05),
-      clip_param=tune.quniform(0.28, 0.36, 0.02),
-      # vf_clip_param=tune.qlograndint(1, 10, 1),
-    )
-
-    metric = None
-    mode = None
-    attributes = ("sgd_minibatch_size", "num_sgd_iter", "lr", "lambda",
-                  "vf_loss_coeff", "clip_param")
-
-    search_alg = OptunaSearch(
-      metric="env_runners/episode_reward_mean",
-      mode="max",
-    )
-
-    scheduler = ASHAScheduler(
-        time_attr="training_iteration",
-        metric="env_runners/episode_reward_mean",
-        mode="max",
-        max_t=args.n_iterations,
-        grace_period=max(1, args.n_iterations // 2),
-        reduction_factor=2,
-        brackets=1,
-    )
-  else:
-    metric = "env_runners/episode_reward_mean"
-    mode = "max"
-    attributes = None
-    search_alg = None
-    scheduler = None
-
-  def custom_trial_name_creator(trial: ray.tune.experiment.Trial) -> str:
-    """Create a custom name that includes hyperparameters."""
-    trial_name = f"{trial.trainable_name}_{trial.trial_id}_{args.training}"
-    trial_name += "_pre-trained" if args.policy_checkpoint else "_None"
-
-    self_interest = trial.config["env_config"].get("self-interest")
-    if self_interest is not None:
-      trial_name += f"_{self_interest:.3f}"
-
-    if attributes is not None:
-      attributes_str = [f"{trial.config[a]:.5f}".rstrip("0").rstrip(".") for a in attributes]
-      trial_name += f"_{','.join(attributes_str)}"
-    return trial_name
-
-  if args.policy_checkpoint:
-    config["policy_checkpoint"] = args.policy_checkpoint
-    config = config.callbacks(LoadPolicyCallback)
+  config = config.callbacks(LoadPolicyCallback)
 
   checkpoint_config = CheckpointConfig(
       num_to_keep=None,
       checkpoint_frequency=args.checkpoint_freq,
       checkpoint_at_end=True)
 
-  player_roles = substrate_config.default_player_roles[0:args.num_players]
-  env_config["roles"] = player_roles
+  def custom_trial_name_creator(trial: ray.tune.experiment.Trial) -> str:
+    """Create a custom name that includes hyperparameters."""
+    trial_name = f"{trial.trainable_name}_{trial.trial_id}"
+    trial_name += f"_n={len(trial.config['env_config'].get('roles'))}"
 
-  if args.training == "independent":
-    policies = dict((aid, PolicySpec())
-                    for aid in base_env._ordered_agent_ids[0:args.num_players])
+    self_interest = trial.config["env_config"].get("self-interest")
+    if self_interest is not None:
+      trial_name += f"_{self_interest:.3f}"
 
-    def policy_mapping_fn(aid, *args, **kwargs):
-      return aid
-  else:  # self-play
-    policies = {"default": PolicySpec()}
-
-    def policy_mapping_fn(aid, *args, **kwargs):
-      return "default"
-
-  if args.self_interest != 1:
-    assert len(player_roles) > 1, "reward transfer requires 2+ agents"
-    assert 0 < args.self_interest <= 1, "self-interest value must be in the interval [0,1]"
-    env_config["self-interest"] = args.self_interest
-
-  config = config.multi_agent(
-    policies=policies,
-    policy_mapping_fn=policy_mapping_fn,
-  ).environment(
-    env_config=env_config,
-  )
+    return trial_name
 
   tune_callbacks = [
       WandbLoggerCallback(
@@ -309,25 +221,39 @@ if __name__ == "__main__":
           log_config=False)
   ] if args.wandb is not None else None
 
-  experiment = tune.run(
-    run_or_experiment="PPO",
-    name=args.substrate,
-    metric=metric,
-    mode=mode,
-    stop={"training_iteration": args.n_iterations},
-    config=config,
-    num_samples=args.num_samples,
-    storage_path=args.local_dir,
-    search_alg=search_alg,
-    scheduler=scheduler,
-    checkpoint_config=checkpoint_config,
-    verbose=VERBOSE,
-    trial_name_creator=custom_trial_name_creator,
-    log_to_file=False,
-    callbacks=tune_callbacks,
-    max_concurrent_trials=args.max_concurrent_trials,
-    resume=args.resume,
-  )
+  for n in range(1, 8):
+    if n == 1:
+      if args.policy_checkpoint:
+        config["policy_checkpoint"] = args.policy_checkpoint
+        continue
+
+    env_config["roles"] = substrate_config.default_player_roles[0:n]
+
+    config = config.training(
+      lr=7e-5 / n,
+    ).environment(
+      env_config=env_config,
+    )
+
+    experiment = tune.run(
+      run_or_experiment="PPO",
+      name=args.substrate,
+      metric="env_runners/episode_reward_mean",
+      mode="max",
+      stop={"training_iteration": args.n_iterations},
+      config=config,
+      # num_samples=args.num_samples,
+      storage_path=args.local_dir,
+      checkpoint_config=checkpoint_config,
+      verbose=VERBOSE,
+      trial_name_creator=custom_trial_name_creator,
+      log_to_file=False,
+      callbacks=tune_callbacks,
+      max_concurrent_trials=args.max_concurrent_trials,
+      # resume=args.resume,
+    )
+
+    config["policy_checkpoint"] = experiment.best_checkpoint.path + "/policies/default"
 
   # run_config = RunConfig(
   #     name=args.substrate,

@@ -143,12 +143,16 @@ class LoadPolicyCallback(DefaultCallbacks):
         policy_id: ID of the newly created policy.
         policy: The policy just created.
     """
-    pretrained_policy = Policy.from_checkpoint(policy.config.get("policy_checkpoint"))
-    pretrained_weights = pretrained_policy.get_weights()
-    logger.info("on_create_policy::Loaded weights from checkpoint: %s", pretrained_weights)
+    policy_checkpoint = policy.config.get("policy_checkpoint")
 
-    logger.info("on_create_policy::Current weights for policy %s: %s", policy_id, policy.get_weights())
+    if policy_checkpoint is not None:
+      logger.info("on_create_policy::Load pretrained policy from %s", policy_checkpoint)
+      pretrained_policy = Policy.from_checkpoint(policy_checkpoint)
+      pretrained_weights = pretrained_policy.get_weights()
+      logger.debug("on_create_policy::Loaded weights from checkpoint: %s", pretrained_weights)
 
-    policy.set_weights(pretrained_weights)
+      logger.debug("on_create_policy::Current weights for policy %s: %s", policy_id, policy.get_weights())
 
-    logger.info("on_create_policy::New weights for policy %s: %s", policy_id, policy.get_weights())
+      policy.set_weights(pretrained_weights)
+
+      logger.debug("on_create_policy::New weights for policy %s: %s", policy_id, policy.get_weights())
