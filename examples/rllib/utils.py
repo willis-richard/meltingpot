@@ -42,6 +42,14 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
     Args:
       env_config: An environment config
     """
+    self.setup(env_config)
+
+    self._action_space_in_preferred_format = True
+    self._obs_space_in_preferred_format = True
+
+    super().__init__()
+
+  def setup(self, env_config: ConfigDict):
     substrate_config = env_config["substrate_config"]
     roles = env_config["roles"]
 
@@ -67,9 +75,6 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
     self.action_space = self._convert_spaces_tuple_to_dict(
         utils.spec_to_space(self._env.action_spec()))
 
-    self._action_space_in_preferred_format = True
-    self._obs_space_in_preferred_format = True
-
     self_interest = env_config.get("self-interest")
     if self_interest is not None:
       off_diag_val = (1 - self_interest) / (self._num_players - 1)
@@ -82,8 +87,6 @@ class MeltingPotEnv(multi_agent_env.MultiAgentEnv):
       self._rtm = rtm
     else:
       self._rtm = None
-
-    super().__init__()
 
   def reset(self, *args, **kwargs) -> Tuple[MultiAgentDict, MultiAgentDict]:
     """See base class."""

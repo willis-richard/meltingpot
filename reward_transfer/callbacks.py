@@ -1,6 +1,5 @@
 import json
 import logging
-from typing import Tuple
 
 from ray.rllib.algorithms.callbacks import DefaultCallbacks
 from ray.rllib.policy import Policy
@@ -52,10 +51,60 @@ class UpdateTrainingCallback(DefaultCallbacks):
       default_player_roles = algorithm.config["env_config"]["substrate_config"]["default_player_roles"]
       n = 1 + result["training_iteration"] // update_every
 
-      algorithm.config["env_config"]["roles"] = default_player_roles[0:n]
       algorithm.config["lr"] = algorithm.config["LR"] / n
 
-      algorithm.setup(algorithm.config)
+      new_env_config = algorithm.config["env_config"]
+      new_env_config["roles"] = default_player_roles[0:n]
+
+      algorithm.config.environment(env_config=new_env_config)
+      algorithm.workers.foreach_worker(lambda worker: worker.config.environment(env_config=new_env_config))
+
+      algorithm.workers.reset([])
+      algorithm.workers._setup(
+        validate_env=algorithm.config.validate_env_runners_after_construction,
+        config=algorithm.config,
+        num_env_runners=algorithm.config.num_env_runners,
+        local_env_runner=True
+      )
+
+      # also do lr: schedule linearly interpolates... which could be fine... LR to LR/8 in 8*n_iterations
+      # algorithm.workers.foreach_env(lambda env: env.setup(new_env_config))
+
+      # algorithm.workers.add_workers(
+      #   algorithm.config.num_env_runners,
+      #   validate=algorithm.config.validate_env_runners_after_construction)
+
+      # algorithm.setup(algorithm.config)
+
+
+      # undo these changes
+
+      # missing lr -> do as a schedule is safer
+
+      # update the algorithm config
+
+      # policy = algorithm.get_policy("default")
+
+      # other_policy = algorithm.get_policy("default")
+      # assert (policy.get_weights() & other_policy.get_weights()).all(), f"POLICY={policy.get_weights()}\nOTHER={other_policy.get_weights()}"
+
+      # algorithm.remove_policy("default")
+      # algorithm.add_policy(policy_id="default", policy=policy)
+
+      # local_tf_session_args = algorith.config.tf_session_args.copy()
+      # local_tf_session_args.update(config.local_tf_session_args)
+      # self._local_config = config.copy(copy_frozen=False).framework(
+      #     tf_session_args=local_tf_session_args
+      # )
+      # algorithm.workers.
+
+
+      # or get the env_runners to reset() and possibly add_workers
+
+      # algorithm.workers.reset()
+      # algorithm.workers.add_workers()
+
+      # algorithm._counters["current_roles"] = new_roles
 
 
 class SaveResultsCallback(DefaultCallbacks):
