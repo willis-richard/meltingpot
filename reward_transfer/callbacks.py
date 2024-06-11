@@ -29,8 +29,8 @@ class LoadPolicyCallback(DefaultCallbacks):
       logger.info("on_create_policy::Load pretrained policy from %s", policy_checkpoint)
       pretrained_policy = Policy.from_checkpoint(policy_checkpoint)
       pretrained_weights = pretrained_policy.get_weights()
-      logger.debug("on_create_policy::Loaded weights from checkpoint: %s", pretrained_weights)
 
+      logger.debug("on_create_policy::Loaded weights from checkpoint: %s", pretrained_weights)
       logger.debug("on_create_policy::Current weights for policy %s: %s", policy_id, policy.get_weights())
 
       policy.set_weights(pretrained_weights)
@@ -48,8 +48,16 @@ class SaveResultsCallback(DefaultCallbacks):
     results_filepath = os.path.join(algorithm.config["results_folder"],
                                     f"{algorithm.config['TRIAL_ID']}_results.json")
 
+    info = {}
+    info["training_iteration"] = result["training_iteration"]
+    self_interest = algorithm.config.env_config.get("self-interest")
+    info["self-interest"] = 0 if self_interest is None else self_interest
+    info["num_players"] = len(algorithm.config.env_config["roles"])
+    info.update(result["env_runners"]["hist_stats"])
+
     with open(results_filepath, 'a') as f:
-      json.dump(result["env_runners"]["hist_stats"], f)
+      json.dump(info, f)
+      logger.info("on_train_result::%s", info)
       f.write('\n')
 
   # def on_evaluate_end(self, *, algorithm, metrics_logger, evaluation_metrics, **kwargs) -> None:
