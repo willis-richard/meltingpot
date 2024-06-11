@@ -20,7 +20,7 @@ from ray.tune.schedulers import ASHAScheduler
 from ray.tune.search.optuna import OptunaSearch
 
 from examples.rllib import utils
-from reward_transfer.callbacks import LoadPolicyCallback, SaveResultsCallback, UpdateTrainingCallback
+from reward_transfer.callbacks import LoadPolicyCallback, SaveResultsCallback
 
 LOGGING_LEVEL = "INFO"
 VERBOSE = 1
@@ -64,8 +64,8 @@ if __name__ == "__main__":
     type=int,
     required=True,
     help="Number of rollout workers, should be in [0,num_cpus]")
-  parser.add_argument(
-    "--num_samples", type=int, default=1, help="Number of samples to run")
+  # parser.add_argument(
+  #   "--num_samples", type=int, default=1, help="Number of samples to run")
   parser.add_argument(
     "--envs_per_worker",
     type=int,
@@ -157,7 +157,6 @@ if __name__ == "__main__":
 
   config = PPOConfig().training(
     gamma=0.999,
-    lr=7e-5,
     train_batch_size=train_batch_size,
     model=DEFAULT_MODEL,
     lambda_=0.99,
@@ -192,25 +191,9 @@ if __name__ == "__main__":
     metrics_num_episodes_for_smoothing=1,
   )
 
-  TRIAL_ID = Trial.generate_id()
-  config["epochs_per_curriculum"] = args.n_iterations
-  config["LR"] = 7e-5
-  config["results_filepath"] = os.path.join(args.local_dir, args.substrate, f"{TRIAL_ID}_results.json")
-  env_config["roles"] = default_player_roles[0:1]
-
-  config = config.training(
-    lr=7e-5,
-  ).environment(
-    env_config=env_config,
-  ).callbacks(
-    ray.rllib.algorithms.callbacks.make_multi_callbacks(
-      [SaveResultsCallback, UpdateTrainingCallback])
-  )
-
-
   def custom_trial_name_creator(trial: Trial) -> str:
     """Create a custom name that includes hyperparameters."""
-    trial_name = f"{trial.trainable_name}_{TRIAL_ID}"
+    trial_name = f"{trial.trainable_name}_{trial.config['TRIAL_ID']}"
     trial_name += f"_n={len(trial.config['env_config'].get('roles'))}"
 
     self_interest = trial.config["env_config"].get("self-interest")
@@ -233,27 +216,46 @@ if __name__ == "__main__":
           log_config=False)
   ] if args.wandb is not None else None
 
-  experiment = tune.run(
-    run_or_experiment="PPO",
-    name=args.substrate,
-    metric="env_runners/episode_reward_mean",
-    mode="max",
-    stop={"training_iteration": args.n_iterations * len(default_player_roles)},
-    config=config,
-    num_samples=args.num_samples,
-    storage_path=args.local_dir,
-    checkpoint_config=checkpoint_config,
-    verbose=VERBOSE,
-    trial_name_creator=custom_trial_name_creator,
-    log_to_file=False,
-    callbacks=tune_callbacks,
-    max_concurrent_trials=args.max_concurrent_trials,
-    resume=args.resume,
+
+  config["results_folder"] = os.path.join(args.local_dir, args.substrate)
+
+  config = config.callbacks(
+    ray.rllib.algorithms.callbacks.make_multi_callbacks(
+      [SaveResultsCallback, LoadPolicyCallback])
   )
 
-    # checkpoint = experiment.trials[-1].checkpoint
 
-    # config["policy_checkpoint"] = os.path.join(checkpoint.path, "policies/default")
+  config["TRIAL_ID"] = Trial.generate_id()
+  for n in range(1, len(default_player_roles) + 1):
+    env_config["roles"] = substrate_config.default_player_roles[0:n]
+
+    config = config.training(
+      lr=7e-5 / n,
+    ).environment(
+      env_config=env_config,
+    )
+
+    experiment = tune.run(
+      run_or_experiment="PPO",
+      name=args.substrate,
+      metric="env_runners/episode_reward_mean",
+      mode="max",
+      stop={"training_iteration": args.n_iterations},
+      config=config,
+      storage_path=args.local_dir,
+      checkpoint_config=checkpoint_config,
+      verbose=VERBOSE,
+      trial_name_creator=custom_trial_name_creator,
+      log_to_file=False,
+      callbacks=tune_callbacks,
+      max_concurrent_trials=args.max_concurrent_trials,
+      # resume=args.resume,
+    )
+
+    checkpoint = experiment.trials[-1].checkpoint
+
+    config["policy_checkpoint"] = os.path.join(checkpoint.path, "policies/default")
+
 
   # run_config = RunConfig(
   #     name=args.substrate,

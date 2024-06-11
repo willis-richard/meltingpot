@@ -1,9 +1,11 @@
 import json
 import logging
+import os
 
 from ray.rllib.algorithms.callbacks import DefaultCallbacks
 from ray.rllib.policy import Policy
 from ray.rllib.utils.typing import PolicyID
+
 
 logging.basicConfig(filename="callbacks.log", level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -34,6 +36,23 @@ class LoadPolicyCallback(DefaultCallbacks):
       policy.set_weights(pretrained_weights)
 
       logger.debug("on_create_policy::New weights for policy %s: %s", policy_id, policy.get_weights())
+
+
+class SaveResultsCallback(DefaultCallbacks):
+
+  def __init__(self):
+    super().__init__()
+
+  def on_train_result(self, *, algorithm, metrics_logger, result, **kwargs) -> None:
+
+    results_filepath = os.path.join(algorithm.config["results_folder"],
+                                    f"{algorithm.config['TRIAL_ID']}_results.json")
+
+    with open(results_filepath, 'a') as f:
+      json.dump(result["env_runners"]["hist_stats"], f)
+      f.write('\n')
+
+  # def on_evaluate_end(self, *, algorithm, metrics_logger, evaluation_metrics, **kwargs) -> None:
 
 
 class UpdateTrainingCallback(DefaultCallbacks):
@@ -105,16 +124,3 @@ class UpdateTrainingCallback(DefaultCallbacks):
       # algorithm.workers.add_workers()
 
       # algorithm._counters["current_roles"] = new_roles
-
-
-class SaveResultsCallback(DefaultCallbacks):
-
-  def __init__(self):
-    super().__init__()
-
-  def on_train_result(self, *, algorithm, metrics_logger, result, **kwargs) -> None:
-    with open(algorithm.config["results_filepath"], 'a') as f:
-      json.dump(result["env_runners"]["hist_stats"], f)
-      f.write('\n')
-
-  # def on_evaluate_end(self, *, algorithm, metrics_logger, evaluation_metrics, **kwargs) -> None:
