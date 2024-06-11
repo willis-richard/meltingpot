@@ -3,6 +3,7 @@
 import argparse
 from collections import defaultdict
 import importlib
+import json
 import os
 from typing import Dict
 
@@ -95,7 +96,7 @@ if __name__ == "__main__":
   parser.add_argument(
     "--resume",
     action="store_true",
-    help="Resume the last trial with name/local_dir")
+    help="Resume the last trial with local_dir/name")
 
   args = parser.parse_args()
 
@@ -217,15 +218,18 @@ if __name__ == "__main__":
   ] if args.wandb is not None else None
 
 
-  config["results_folder"] = os.path.join(args.local_dir, args.substrate)
-
   config = config.callbacks(
     ray.rllib.algorithms.callbacks.make_multi_callbacks(
       [SaveResultsCallback, LoadPolicyCallback])
   )
 
 
-  config["TRIAL_ID"] = Trial.generate_id()
+  TRIAL_ID = Trial.generate_id()
+  config["TRIAL_ID"] = TRIAL_ID
+  name = os.path.join(args.substrate, TRIAL_ID)
+  working_folder = os.path.join(args.local_dir, name)
+  config["working_folder"] = working_folder
+
   for n in range(1, len(default_player_roles) + 1):
     env_config["roles"] = substrate_config.default_player_roles[0:n]
 
@@ -237,7 +241,7 @@ if __name__ == "__main__":
 
     experiment = tune.run(
       run_or_experiment="PPO",
-      name=args.substrate,
+      name=name,
       metric="env_runners/episode_reward_mean",
       mode="max",
       stop={"training_iteration": args.n_iterations},
@@ -246,6 +250,7 @@ if __name__ == "__main__":
       checkpoint_config=checkpoint_config,
       verbose=VERBOSE,
       trial_name_creator=custom_trial_name_creator,
+      trial_dirname_creator=custom_trial_name_creator,
       log_to_file=False,
       callbacks=tune_callbacks,
       max_concurrent_trials=args.max_concurrent_trials,
@@ -253,8 +258,18 @@ if __name__ == "__main__":
     )
 
     checkpoint = experiment.trials[-1].checkpoint
+    policy_checkpoint = os.path.join(checkpoint.path, "policies/default")
+    config["policy_checkpoint"] = policy_checkpoint
 
-    config["policy_checkpoint"] = os.path.join(checkpoint.path, "policies/default")
+    checkpoints_log_filepath = os.path.join(working_folder, "checkpoints.json")
+    info = {}
+    self_interest = config.env_config.get("self-interest")
+    info["self-interest"] = 0 if self_interest is None else self_interest
+    info["num_players"] = len(config.env_config["roles"])
+    info["policy_checkpoint"] = policy_checkpoint
+    with open(checkpoints_log_filepath, mode="a") as f:
+      json.dump(info, f)
+      f.write("\n")
 
 
   # run_config = RunConfig(

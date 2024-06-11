@@ -45,8 +45,7 @@ class SaveResultsCallback(DefaultCallbacks):
 
   def on_train_result(self, *, algorithm, metrics_logger, result, **kwargs) -> None:
 
-    results_filepath = os.path.join(algorithm.config["results_folder"],
-                                    f"{algorithm.config['TRIAL_ID']}_results.json")
+    results_filepath = os.path.join(algorithm.config["working_folder"], "results.json")
 
     info = {}
     info["training_iteration"] = result["training_iteration"]
@@ -55,10 +54,10 @@ class SaveResultsCallback(DefaultCallbacks):
     info["num_players"] = len(algorithm.config.env_config["roles"])
     info.update(result["env_runners"]["hist_stats"])
 
-    with open(results_filepath, 'a') as f:
+    with open(results_filepath, mode="a", encoding="utf8") as f:
       json.dump(info, f)
-      logger.info("on_train_result::%s", info)
-      f.write('\n')
+      f.write("\n")
+      logger.debug("on_train_result::%s", info)
 
   # def on_evaluate_end(self, *, algorithm, metrics_logger, evaluation_metrics, **kwargs) -> None:
 
