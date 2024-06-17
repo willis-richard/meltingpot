@@ -23,8 +23,8 @@ from ray.tune.search.optuna import OptunaSearch
 from examples.rllib import utils
 from reward_transfer.callbacks import LoadPolicyCallback, SaveResultsCallback
 
-LOGGING_LEVEL = "INFO"
-VERBOSE = 1
+LOGGING_LEVEL = "WARN"
+VERBOSE = 0  # 0: silent, 1: status
 
 if __name__ == "__main__":
 
@@ -97,6 +97,11 @@ if __name__ == "__main__":
     "--resume",
     action="store_true",
     help="Resume the last trial with local_dir/name")
+  parser.add_argument(
+    "--trial_id",
+    type=str,
+    default=None,
+    help="Trial id to resume training from (if we had an error)")
 
   args = parser.parse_args()
 
@@ -201,7 +206,7 @@ if __name__ == "__main__":
     if self_interest is not None:
       trial_name += f"_s={self_interest:.3f}"
     else:
-      trial_name += "_s=0.000"
+      trial_name += "_s=1.000"
 
     return trial_name
 
@@ -224,13 +229,27 @@ if __name__ == "__main__":
   )
 
 
-  TRIAL_ID = Trial.generate_id()
+  TRIAL_ID = args.trial_id if args.trial_id else Trial.generate_id()
   config["TRIAL_ID"] = TRIAL_ID
   name = os.path.join(args.substrate, TRIAL_ID)
   working_folder = os.path.join(args.local_dir, name)
   config["working_folder"] = working_folder
+  checkpoints_log_filepath = os.path.join(working_folder, "checkpoints.json")
 
-  for n in range(1, len(default_player_roles) + 1):
+  # a passed in trial_id means training had an error and we wish to resume
+  if args.trial_id:
+    with open(checkpoints_log_filepath, mode="r", encoding="utf8") as f:
+      info = json.loads(f.readlines()[-1])
+      self_interest = info["self-interest"]
+      if self_interest != 1:
+        config["self-interest"] = self_interest
+      start_n = info["num_players"] + 1
+      config["policy_checkpoint"] = info["policy_checkpoint"]
+  else:
+    start_n = 1
+
+
+  for n in range(start_n, len(default_player_roles) + 1):
     env_config["roles"] = substrate_config.default_player_roles[0:n]
 
     config = config.training(
@@ -261,13 +280,13 @@ if __name__ == "__main__":
     policy_checkpoint = os.path.join(checkpoint.path, "policies/default")
     config["policy_checkpoint"] = policy_checkpoint
 
-    checkpoints_log_filepath = os.path.join(working_folder, "checkpoints.json")
+    # checkpoint logging
     info = {}
     self_interest = config.env_config.get("self-interest")
-    info["self-interest"] = 0 if self_interest is None else self_interest
+    info["self-interest"] = 1 if self_interest is None else self_interest
     info["num_players"] = len(config.env_config["roles"])
     info["policy_checkpoint"] = policy_checkpoint
-    with open(checkpoints_log_filepath, mode="a") as f:
+    with open(checkpoints_log_filepath, mode="a", encoding="utf8") as f:
       json.dump(info, f)
       f.write("\n")
 
