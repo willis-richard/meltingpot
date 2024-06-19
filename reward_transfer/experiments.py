@@ -4,8 +4,9 @@ import argparse
 from collections import defaultdict
 import importlib
 import json
+import numpy as np
 import os
-from typing import Dict
+import pandas as pd
 
 from meltingpot import substrate
 from ml_collections.config_dict import ConfigDict
@@ -102,6 +103,17 @@ if __name__ == "__main__":
     type=str,
     default=None,
     help="Trial id to resume training from (if we had an error)")
+  parser.add_argument(
+    "--training",
+    type=str,
+    choices=["training", "pre-training"],
+    required=True,
+    help="Whether to pre-train a policy, or iteratively decrease the self-interest")
+  parser.add_argument(
+    "--n",
+    type=int,
+    default=None,
+    help="Number of players")
 
   args = parser.parse_args()
 
@@ -236,59 +248,109 @@ if __name__ == "__main__":
   config["working_folder"] = working_folder
   checkpoints_log_filepath = os.path.join(working_folder, "checkpoints.json")
 
-  # a passed in trial_id means training had an error and we wish to resume
-  if args.trial_id:
-    with open(checkpoints_log_filepath, mode="r", encoding="utf8") as f:
-      info = json.loads(f.readlines()[-1])
-      self_interest = info["self-interest"]
-      if self_interest != 1:
-        config["self-interest"] = self_interest
-      start_n = info["num_players"] + 1
-      config["policy_checkpoint"] = info["policy_checkpoint"]
-  else:
-    start_n = 1
+  if args.training == "pre-training":
+    # a passed in trial_id means training had an error and we wish to resume
+    if args.trial_id:
+      with open(checkpoints_log_filepath, mode="r", encoding="utf8") as f:
+        info = json.loads(f.readlines()[-1])
+        self_interest = info["self-interest"]
+        if self_interest != 1:
+          env_config["self-interest"] = self_interest
+        start_n = info["num_players"] + 1
+        config["policy_checkpoint"] = info["policy_checkpoint"]
+    else:
+      start_n = 1
 
+    for n in range(start_n, len(default_player_roles) + 1):
+      env_config["roles"] = substrate_config.default_player_roles[0:n]
 
-  for n in range(start_n, len(default_player_roles) + 1):
+      config = config.training(
+        lr=7e-5 / n,
+      ).environment(
+        env_config=env_config,
+      )
+
+      experiment = tune.run(
+        run_or_experiment="PPO",
+        name=name,
+        metric="env_runners/episode_reward_mean",
+        mode="max",
+        stop={"training_iteration": args.n_iterations},
+        config=config,
+        storage_path=args.local_dir,
+        checkpoint_config=checkpoint_config,
+        verbose=VERBOSE,
+        trial_name_creator=custom_trial_name_creator,
+        trial_dirname_creator=custom_trial_name_creator,
+        log_to_file=False,
+        callbacks=tune_callbacks,
+        max_concurrent_trials=args.max_concurrent_trials,
+        # resume=args.resume,
+      )
+
+      checkpoint = experiment.trials[-1].checkpoint
+      policy_checkpoint = os.path.join(checkpoint.path, "policies/default")
+      config["policy_checkpoint"] = policy_checkpoint
+
+      # checkpoint logging
+      info = {}
+      self_interest = config.env_config.get("self-interest")
+      info["self-interest"] = 1 if self_interest is None else self_interest
+      info["num_players"] = len(config.env_config["roles"])
+      info["policy_checkpoint"] = policy_checkpoint
+      with open(checkpoints_log_filepath, mode="a", encoding="utf8") as f:
+        json.dump(info, f)
+        f.write("\n")
+
+  if args.training == "training":
+    assert args.trial_id is not None
+    assert args.n is not None
+    n = args.n
     env_config["roles"] = substrate_config.default_player_roles[0:n]
 
-    config = config.training(
-      lr=7e-5 / n,
-    ).environment(
-      env_config=env_config,
-    )
+    config = config.training(lr=7e-5 / n)
 
-    experiment = tune.run(
-      run_or_experiment="PPO",
-      name=name,
-      metric="env_runners/episode_reward_mean",
-      mode="max",
-      stop={"training_iteration": args.n_iterations},
-      config=config,
-      storage_path=args.local_dir,
-      checkpoint_config=checkpoint_config,
-      verbose=VERBOSE,
-      trial_name_creator=custom_trial_name_creator,
-      trial_dirname_creator=custom_trial_name_creator,
-      log_to_file=False,
-      callbacks=tune_callbacks,
-      max_concurrent_trials=args.max_concurrent_trials,
-      # resume=args.resume,
-    )
-
-    checkpoint = experiment.trials[-1].checkpoint
-    policy_checkpoint = os.path.join(checkpoint.path, "policies/default")
+    df = pd.read_json(checkpoints_log_filepath, lines=True)
+    condition = (df["num_players"] == n) & (df["self-interest"] == 1)
+    policy_checkpoint = df[condition]["policy_checkpoint"].iloc[0]
     config["policy_checkpoint"] = policy_checkpoint
 
-    # checkpoint logging
-    info = {}
-    self_interest = config.env_config.get("self-interest")
-    info["self-interest"] = 1 if self_interest is None else self_interest
-    info["num_players"] = len(config.env_config["roles"])
-    info["policy_checkpoint"] = policy_checkpoint
-    with open(checkpoints_log_filepath, mode="a", encoding="utf8") as f:
-      json.dump(info, f)
-      f.write("\n")
+    step = 0.09
+    for s in np.arange(1-step, 1 / n, -step):
+      env_config["self-interest"] = s
+      config = config.environment(env_config=env_config)
+
+      experiment = tune.run(
+        run_or_experiment="PPO",
+        name=name,
+        metric="env_runners/episode_reward_mean",
+        mode="max",
+        stop={"training_iteration": args.n_iterations},
+        config=config,
+        storage_path=args.local_dir,
+        checkpoint_config=checkpoint_config,
+        verbose=VERBOSE,
+        trial_name_creator=custom_trial_name_creator,
+        trial_dirname_creator=custom_trial_name_creator,
+        log_to_file=False,
+        callbacks=tune_callbacks,
+        max_concurrent_trials=args.max_concurrent_trials,
+        # resume=args.resume,
+      )
+
+      checkpoint = experiment.trials[-1].checkpoint
+      policy_checkpoint = os.path.join(checkpoint.path, "policies/default")
+      config["policy_checkpoint"] = policy_checkpoint
+
+      # checkpoint logging
+      info = {}
+      self_interest = config.env_config.get("self-interest")
+      info["self-interest"] = 1 if self_interest is None else self_interest
+      info["num_players"] = len(config.env_config["roles"])
+      info["policy_checkpoint"] = policy_checkpoint
+      with open(checkpoints_log_filepath, mode="a", encoding="utf8") as f:
+        json.dump(info, f)
+        f.write("\n")
 
 
   # run_config = RunConfig(
