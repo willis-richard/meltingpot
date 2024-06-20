@@ -320,9 +320,10 @@ if __name__ == "__main__":
       self_interest = args.s
     else:
       self_interest = 1
-    condition = (df["num_players"] == n) & (df["self-interest"] == self_interest)
-    policy_checkpoint = df[condition]["policy_checkpoint"].iloc[0]
-    config["policy_checkpoint"] = policy_checkpoint
+    # condition = (df["num_players"] == n) & (df["self-interest"] == self_interest)
+    # policy_checkpoint = df[condition]["policy_checkpoint"].iloc[0]
+    # config["policy_checkpoint"] = policy_checkpoint
+    config["policy_checkpoint"] = args.policy_checkpoint
 
     step = 0.09
     for s in np.arange(self_interest - step, 1 / n, -step):
