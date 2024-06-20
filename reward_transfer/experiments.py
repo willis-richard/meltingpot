@@ -114,6 +114,11 @@ if __name__ == "__main__":
     type=int,
     default=None,
     help="Number of players")
+  parser.add_argument(
+    "--s",
+    type=float,
+    default=None,
+    help="Pre-trained self-interest level (resuming crashed training)")
 
   args = parser.parse_args()
 
@@ -311,12 +316,16 @@ if __name__ == "__main__":
     config = config.training(lr=7e-5 / n)
 
     df = pd.read_json(checkpoints_log_filepath, lines=True)
-    condition = (df["num_players"] == n) & (df["self-interest"] == 1)
+    if args.s:
+      self_interest = args.s
+    else:
+      self_interest = 1
+    condition = (df["num_players"] == n) & (df["self-interest"] == self_interest)
     policy_checkpoint = df[condition]["policy_checkpoint"].iloc[0]
     config["policy_checkpoint"] = policy_checkpoint
 
     step = 0.09
-    for s in np.arange(1-step, 1 / n, -step):
+    for s in np.arange(self_interest - step, 1 / n, -step):
       env_config["self-interest"] = s
       config = config.environment(env_config=env_config)
 

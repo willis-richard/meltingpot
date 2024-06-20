@@ -50,7 +50,7 @@ class SaveResultsCallback(DefaultCallbacks):
     info = {}
     info["training_iteration"] = result["training_iteration"]
     self_interest = algorithm.config.env_config.get("self-interest")
-    info["self-interest"] = 0 if self_interest is None else self_interest
+    info["self-interest"] = 1 if self_interest is None else self_interest
     info["num_players"] = len(algorithm.config.env_config["roles"])
     info.update(result["env_runners"]["hist_stats"])
 
