@@ -325,8 +325,8 @@ if __name__ == "__main__":
     # config["policy_checkpoint"] = policy_checkpoint
     config["policy_checkpoint"] = args.policy_checkpoint
 
-    step = 0.09
-    for s in np.arange(self_interest - step, 1 / n, -step):
+    ratio = [20, 10, 5, 3, 5/2, 2, 5/3, 4/3, 1]
+    for s in [r/(n + r - 1) for r in ratio]:
       env_config["self-interest"] = s
       config = config.environment(env_config=env_config)
 
