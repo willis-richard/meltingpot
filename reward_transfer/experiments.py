@@ -320,10 +320,11 @@ if __name__ == "__main__":
       self_interest = args.s
     else:
       self_interest = 1
-    # condition = (df["num_players"] == n) & (df["self-interest"] == self_interest)
-    # policy_checkpoint = df[condition]["policy_checkpoint"].iloc[0]
-    # config["policy_checkpoint"] = policy_checkpoint
-    config["policy_checkpoint"] = args.policy_checkpoint
+    condition = (df["num_players"] == n) & (df["self-interest"] == self_interest)
+    policy_checkpoints = df[condition]["policy_checkpoint"]
+    assert len(policy_checkpoints) == 1, "Multiple checkpoints for this combination"
+    config["policy_checkpoint"] = policy_checkpoints.iloc[0]
+    # config["policy_checkpoint"] = args.policy_checkpoint
 
     ratio = [20, 10, 5, 3, 5/2, 2, 5/3, 4/3, 1]
     for s in [r/(n + r - 1) for r in ratio]:
