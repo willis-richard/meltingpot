@@ -26,16 +26,21 @@ class LoadPolicyCallback(DefaultCallbacks):
     policy_checkpoint = policy.config.get("policy_checkpoint")
 
     if policy_checkpoint is not None:
-      logger.info("on_create_policy::Load pretrained policy from %s", policy_checkpoint)
-      pretrained_policy = Policy.from_checkpoint(policy_checkpoint)
-      pretrained_weights = pretrained_policy.get_weights()
+      pretrained_path = os.path.join(policy_checkpoint, policy_id)
+      if os.path.isdir(pretrained_path):
+        logger.info("on_create_policy::Load pretrained policy from %s", policy_checkpoint)
+        pretrained_policy = Policy.from_checkpoint(policy_checkpoint)
+        pretrained_weights = pretrained_policy.get_weights()
 
-      logger.debug("on_create_policy::Loaded weights from checkpoint: %s", pretrained_weights)
-      logger.debug("on_create_policy::Current weights for policy %s: %s", policy_id, policy.get_weights())
+        logger.debug("on_create_policy::Loaded weights from checkpoint: %s", pretrained_weights)
+        logger.debug("on_create_policy::Current weights for policy %s: %s", policy_id, policy.get_weights())
 
-      policy.set_weights(pretrained_weights)
+        policy.set_weights(pretrained_weights)
 
-      logger.debug("on_create_policy::New weights for policy %s: %s", policy_id, policy.get_weights())
+        logger.debug("on_create_policy::New weights for policy %s: %s", policy_id, policy.get_weights())
+      else:
+        logger.info("on_create_policy::Pretrained policy %s does not exist", policy_checkpoint)
+
 
 
 class SaveResultsCallback(DefaultCallbacks):
@@ -52,6 +57,7 @@ class SaveResultsCallback(DefaultCallbacks):
     self_interest = algorithm.config.env_config.get("self-interest")
     info["self-interest"] = 1 if self_interest is None else self_interest
     info["num_players"] = len(algorithm.config.env_config["roles"])
+    info["training-mode"] = algorithm.config.get("training-mode")
     info.update(result["env_runners"]["hist_stats"])
 
     with open(results_filepath, mode="a", encoding="utf8") as f:
