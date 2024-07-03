@@ -270,7 +270,6 @@ if __name__ == "__main__":
   config["working_folder"] = working_folder
   checkpoints_log_filepath = os.path.join(working_folder, "checkpoints.json")
 
-  # TODO     policies_to_train = None
   config["training-mode"] = args.training_mode
 
   if args.training == "pre-training":
@@ -291,7 +290,7 @@ if __name__ == "__main__":
 
       if args.training_mode == "independent":
         lr = 7e-5
-        policies = dict((aid, PolicySpec()) for aid in base_env._ordered_agent_ids[0:n])
+        policies = {aid: PolicySpec() for aid in base_env._ordered_agent_ids[0:n]}
       else:
         lr = 7e-5 / n
         policies = {"default": PolicySpec()}
@@ -353,7 +352,7 @@ if __name__ == "__main__":
       (df["self-interest"] == self_interest) & \
       (df["training-mode"] == args.training_mode)
     policy_checkpoints = df[condition]["policy_checkpoint"]
-    assert len(policy_checkpoints) == 1, "Multiple checkpoints for this combination"
+    assert len(policy_checkpoints) == 1, f"Exactly one checkpoints must exist {df[condition]['policy_checkpoint']}"
     config["policy_checkpoint"] = policy_checkpoints.iloc[0]
     # config["policy_checkpoint"] = args.policy_checkpoint
 
@@ -371,7 +370,7 @@ if __name__ == "__main__":
     )
 
     ratio = [20, 10, 5, 3, 5/2, 2, 5/3, 4/3, 1]
-    for s in [r/(n + r - 1) for r in ratio]:
+    for s in [r / (n + r - 1) for r in ratio]:
       env_config["self-interest"] = s
 
       config = config.environment(env_config=env_config)

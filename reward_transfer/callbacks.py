@@ -27,23 +27,21 @@ class LoadPolicyCallback(DefaultCallbacks):
 
     if policy_checkpoint is not None:
       pretrained_path = os.path.join(policy_checkpoint, "policies", policy_id)
+
+      # If we are pre-training and using independent training-mode, the new
+      # player_n will not have a policy to start from. In this case start them
+      # as a copy of player_1
+      if not os.path.isdir(pretrained_path) and policy.config.get("training-mode") == "independent":
+        pretrained_path = os.path.join(policy_checkpoint, "policies", "player_0")
+
       if os.path.isdir(pretrained_path):
-        logger.info("on_create_policy::Process %s:Load pretrained policy from %s",
-                    os.getpid(), pretrained_path)
+        logger.info("on_create_policy::Process %s:Load pretrained policy from %s for policy %s",
+                    os.getpid(), pretrained_path, policy_id)
         pretrained_policy = Policy.from_checkpoint(pretrained_path)
         pretrained_weights = pretrained_policy.get_weights()
-
-        logger.debug("on_create_policy::Process %s:Loaded weights from checkpoint: %s",
-                     os.getpid(), pretrained_weights)
-        logger.debug("on_create_policy::Process %s:Current weights for policy %s: %s",
-                     os.getpid(), policy_id, policy.get_weights())
-
         policy.set_weights(pretrained_weights)
-
-        logger.debug("on_create_policy::Process %s:New weights for policy %s: %s",
-                     os.getpid(), policy_id, policy.get_weights())
       else:
-        logger.info("on_create_policy::Process %s:Pretrained policy %s does not exist",
+        logger.warn("on_create_policy::Process %s:Pretrained policy %s does not exist",
                     os.getpid(), pretrained_path)
 
 
