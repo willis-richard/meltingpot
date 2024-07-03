@@ -26,20 +26,25 @@ class LoadPolicyCallback(DefaultCallbacks):
     policy_checkpoint = policy.config.get("policy_checkpoint")
 
     if policy_checkpoint is not None:
-      pretrained_path = os.path.join(policy_checkpoint, policy_id)
+      pretrained_path = os.path.join(policy_checkpoint, "policies", policy_id)
       if os.path.isdir(pretrained_path):
-        logger.info("on_create_policy::Load pretrained policy from %s", policy_checkpoint)
-        pretrained_policy = Policy.from_checkpoint(policy_checkpoint)
+        logger.info("on_create_policy::Process %s:Load pretrained policy from %s",
+                    os.getpid(), pretrained_path)
+        pretrained_policy = Policy.from_checkpoint(pretrained_path)
         pretrained_weights = pretrained_policy.get_weights()
 
-        logger.debug("on_create_policy::Loaded weights from checkpoint: %s", pretrained_weights)
-        logger.debug("on_create_policy::Current weights for policy %s: %s", policy_id, policy.get_weights())
+        logger.debug("on_create_policy::Process %s:Loaded weights from checkpoint: %s",
+                     os.getpid(), pretrained_weights)
+        logger.debug("on_create_policy::Process %s:Current weights for policy %s: %s",
+                     os.getpid(), policy_id, policy.get_weights())
 
         policy.set_weights(pretrained_weights)
 
-        logger.debug("on_create_policy::New weights for policy %s: %s", policy_id, policy.get_weights())
+        logger.debug("on_create_policy::Process %s:New weights for policy %s: %s",
+                     os.getpid(), policy_id, policy.get_weights())
       else:
-        logger.info("on_create_policy::Pretrained policy %s does not exist", policy_checkpoint)
+        logger.info("on_create_policy::Process %s:Pretrained policy %s does not exist",
+                    os.getpid(), pretrained_path)
 
 
 

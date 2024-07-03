@@ -184,6 +184,14 @@ if __name__ == "__main__":
   train_batch_size = max(1,
                          args.rollout_workers) * args.envs_per_worker * horizon * args.episodes_per_worker
 
+  if args.training_mode == "independent":
+    def policy_mapping_fn(aid, *_, **__):
+      return aid
+  else:
+    # pylint: disable=unused-argument
+    def policy_mapping_fn(aid, *_, **__):
+      return "default"
+
   config = PPOConfig().training(
     gamma=0.999,
     train_batch_size=train_batch_size,
@@ -198,12 +206,12 @@ if __name__ == "__main__":
   ).env_runners(
     num_env_runners=args.rollout_workers,
     num_envs_per_env_runner=args.envs_per_worker,
-    rollout_fragment_length=200,
+    rollout_fragment_length=400,
     batch_mode="complete_episodes",
     # observation_filter="MeanStdFilter",
   ).multi_agent(
-    policies={"default": PolicySpec()},
     count_steps_by="env_steps",
+    policy_mapping_fn=policy_mapping_fn,
   ).fault_tolerance(
     recreate_failed_env_runners=True,
     num_consecutive_env_runner_failures_tolerance=3,
@@ -230,6 +238,7 @@ if __name__ == "__main__":
     else:
       trial_name += "_s=1.000"
 
+    # This is here because my first self-play training did not include "_self-play"
     if trial.config.get("training-mode") == "independent":
       trial_name += "_independent"
 
@@ -266,7 +275,7 @@ if __name__ == "__main__":
 
   if args.training == "pre-training":
     # a passed in trial_id means training had an error and we wish to resume
-    if args.trial_id:
+    if args.trial_id is not None:
       with open(checkpoints_log_filepath, mode="r", encoding="utf8") as f:
         info = json.loads(f.readlines()[-1])
         self_interest = info["self-interest"]
@@ -283,18 +292,9 @@ if __name__ == "__main__":
       if args.training_mode == "independent":
         lr = 7e-5
         policies = dict((aid, PolicySpec()) for aid in base_env._ordered_agent_ids[0:n])
-
-        def policy_mapping_fn(aid, *_, **__):
-          return aid
-
       else:
         lr = 7e-5 / n
         policies = {"default": PolicySpec()}
-
-        # pylint: disable=unused-argument
-        def policy_mapping_fn(aid, *_, **__):
-          return "default"
-
 
       config = config.training(
         lr=lr
@@ -302,7 +302,6 @@ if __name__ == "__main__":
         env_config=env_config,
       ).multi_agent(
         policies=policies,
-        policy_mapping_fn=policy_mapping_fn,
       )
 
       experiment = tune.run(
@@ -323,8 +322,7 @@ if __name__ == "__main__":
         # resume=args.resume,
       )
 
-      checkpoint = experiment.trials[-1].checkpoint
-      policy_checkpoint = os.path.join(checkpoint.path, "policies/default")
+      policy_checkpoint = experiment.trials[-1].checkpoint.path
       config["policy_checkpoint"] = policy_checkpoint
 
       # checkpoint logging
@@ -351,15 +349,31 @@ if __name__ == "__main__":
       self_interest = args.s
     else:
       self_interest = 1
-    condition = (df["num_players"] == n) & (df["self-interest"] == self_interest) & df["training-mode"] == args.training_mode)
+    condition = (df["num_players"] == n) & \
+      (df["self-interest"] == self_interest) & \
+      (df["training-mode"] == args.training_mode)
     policy_checkpoints = df[condition]["policy_checkpoint"]
     assert len(policy_checkpoints) == 1, "Multiple checkpoints for this combination"
     config["policy_checkpoint"] = policy_checkpoints.iloc[0]
     # config["policy_checkpoint"] = args.policy_checkpoint
 
+    if args.training_mode == "independent":
+      lr = 7e-5
+      policies = dict((aid, PolicySpec()) for aid in base_env._ordered_agent_ids[0:n])
+    else:
+      lr = 7e-5 / n
+      policies = {"default": PolicySpec()}
+
+    config = config.training(
+      lr=lr
+    ).multi_agent(
+      policies=policies,
+    )
+
     ratio = [20, 10, 5, 3, 5/2, 2, 5/3, 4/3, 1]
     for s in [r/(n + r - 1) for r in ratio]:
       env_config["self-interest"] = s
+
       config = config.environment(env_config=env_config)
 
       experiment = tune.run(
@@ -380,8 +394,7 @@ if __name__ == "__main__":
         # resume=args.resume,
       )
 
-      checkpoint = experiment.trials[-1].checkpoint
-      policy_checkpoint = os.path.join(checkpoint.path, "policies/default")
+      policy_checkpoint = experiment.trials[-1].checkpoint.path
       config["policy_checkpoint"] = policy_checkpoint
 
       # checkpoint logging
@@ -390,6 +403,7 @@ if __name__ == "__main__":
       info["self-interest"] = 1 if self_interest is None else self_interest
       info["num_players"] = len(config.env_config["roles"])
       info["policy_checkpoint"] = policy_checkpoint
+      info["training-mode"] = args.training_mode
       with open(checkpoints_log_filepath, mode="a", encoding="utf8") as f:
         json.dump(info, f)
         f.write("\n")
