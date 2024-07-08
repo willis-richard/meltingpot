@@ -31,3 +31,5 @@ __pycache__/
 /results/
 
 .virtual_documents
+
+*png
