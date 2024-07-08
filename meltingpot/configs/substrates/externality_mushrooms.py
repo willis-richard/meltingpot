@@ -61,6 +61,8 @@ _ENABLE_DEBUG_OBSERVATIONS = False
 
 _COMPASS = ["N", "E", "S", "W"]
 
+SPRITE_SIZE=1
+
 MARKING_SPRITE = """
 oxxxxxxo
 xoxxxxox
@@ -757,9 +759,9 @@ def create_scene():
           {
               "component": "StochasticIntervalEpisodeEnding",
               "kwargs": {
-                  "minimumFramesPerEpisode": 1000,
+                  "minimumFramesPerEpisode": 2000,
                   "intervalLength": 100,  # Set equal to unroll length.
-                  "probabilityTerminationPerInterval": 0.2
+                  "probabilityTerminationPerInterval": 1.0
               }
           },
       ]
@@ -1060,8 +1062,8 @@ def build(
       levelDirectory="meltingpot/lua/levels",
       numPlayers=num_players,
       # Define upper bound of episode length since episodes end stochastically.
-      maxEpisodeLengthFrames=5000,
-      spriteSize=8,
+      maxEpisodeLengthFrames=2000,
+      spriteSize=SPRITE_SIZE,
       topology="BOUNDED",  # Choose from ["BOUNDED", "TORUS"],
       simulation={
           "map": config.layout.ascii_map,
