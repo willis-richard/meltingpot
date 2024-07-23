@@ -106,15 +106,15 @@ if __name__ == "__main__":
   parser.add_argument(
     "--training",
     type=str,
-    choices=["training", "pre-training"],
+    choices=["training", "pre-training", "scratch"],
     required=True,
-    help="Whether to pre-train a policy, or iteratively decrease the self-interest")
+    help="Whether to pre-train a policy, iteratively decrease the self-interest, or validate from scratch")
   parser.add_argument(
     "--training_mode",
     type=str,
     choices=["independent", "self-play"],
     required=True,
-    help="Whether to pre-train a policy, or iteratively decrease the self-interest")
+    help="self-play enables parameter sharing")
   parser.add_argument(
     "--n",
     type=int,
@@ -241,6 +241,9 @@ if __name__ == "__main__":
     # This is here because my first self-play training did not include "_self-play"
     if trial.config.get("training-mode") == "independent":
       trial_name += "_independent"
+
+    if trial.config.get("training") == "scratch":
+      trial_name += "_scratch"
 
     return trial_name
 
@@ -401,25 +404,45 @@ if __name__ == "__main__":
         json.dump(info, f)
         f.write("\n")
 
+  if args.training == "scratch":
+    assert args.n is not None
+    assert args.s is not None
+    n = args.n
+    env_config["roles"] = substrate_config.default_player_roles[0:n]
 
-  # run_config = RunConfig(
-  #     name=args.substrate,
-  #     local_dir=args.local_dir,
-  #     stop={"training_iteration": args.n_iterations},
-  #     checkpoint_config=checkpoint_config,
-  #     verbose=VERBOSE)
+    if args.training_mode == "independent":
+      lr = 7e-5
+      policies = dict((aid, PolicySpec()) for aid in base_env._ordered_agent_ids[0:n])
+    else:
+      lr = 7e-5 / n
+      policies = {"default": PolicySpec()}
 
-  # tune_config = tune.TuneConfig(
-  #   num_samples=args.num_samples,
-  #   search_alg=optuna_search,
-  #   scheduler=asha_scheduler)
+    config = config.training(
+      lr=lr
+    ).multi_agent(
+      policies=policies,
+    )
 
-  # tuner = tune.Tuner(
-  #     "PPO", param_space=config, tune_config=tune_config, run_config=run_config)
+    env_config["self-interest"] = args.s
 
-  # results = tuner.fit()
+    config = config.environment(env_config=env_config)
 
-  # best_result = results.get_best_result(metric="episode_reward_mean", mode="max")
-  # print(best_result)
+    experiment = tune.run(
+      run_or_experiment="PPO",
+      name=name,
+      metric="env_runners/episode_reward_mean",
+      mode="max",
+      stop={"training_iteration": args.n_iterations},
+      config=config,
+      storage_path=args.local_dir,
+      checkpoint_config=checkpoint_config,
+      verbose=VERBOSE,
+      trial_name_creator=custom_trial_name_creator,
+      trial_dirname_creator=custom_trial_name_creator,
+      log_to_file=False,
+      callbacks=tune_callbacks,
+      max_concurrent_trials=args.max_concurrent_trials,
+      # resume=args.resume,
+    )
 
   ray.shutdown()
