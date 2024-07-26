@@ -220,7 +220,7 @@ if __name__ == "__main__":
   ).debugging(
     log_level=LOGGING_LEVEL,
   ).resources(
-    num_gpus=args.num_gpus,
+    num_gpus=min(args.num_gpus, 1),
   ).framework(
     framework=args.framework,
   ).reporting(
@@ -248,8 +248,8 @@ if __name__ == "__main__":
     return trial_name
 
   checkpoint_config = CheckpointConfig(
-      num_to_keep=None,
-      checkpoint_frequency=args.n_iterations,
+      num_to_keep=1,
+      checkpoint_frequency=100,
       checkpoint_at_end=True)
 
   tune_callbacks = [
@@ -442,7 +442,7 @@ if __name__ == "__main__":
       log_to_file=False,
       callbacks=tune_callbacks,
       max_concurrent_trials=args.max_concurrent_trials,
-      # resume=args.resume,
+      num_samples=5,
     )
 
   ray.shutdown()
