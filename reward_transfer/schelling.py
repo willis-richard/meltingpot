@@ -63,10 +63,10 @@ def main():
   substrate_config = substrate.get_config(config["env_config"]["substrate"])
 
   config["env_config"]["self-interest"] = 1
-  config["env_config"]["roles"] = substrate_config.default_player_roles[0:2]
+  config["env_config"]["roles"] = substrate_config.default_player_roles
 
   base_env = utils.env_creator(config["env_config"])
-  aids = base_env._ordered_agent_ids[0:2]
+  aids = base_env._ordered_agent_ids
 
   # load all the policies...
 
@@ -91,11 +91,9 @@ def main():
   ppo = config.build()
 
   # Start with all defect
-  for role in aids:
-    print(f"Update defect policy {role}")
-    ppo.remove_policy(role)
-    policy = Policy.from_checkpoint(os.path.join(args.defection_checkpoint, "policies", role))
-    ppo.add_policy(policy_id=role, policy=policy)
+  for aid in aids:
+    print(f"Update defect policy {aid}")
+    ppo.get_policy(aid).set_weights(Policy.from_checkpoint(os.path.join(args.defection_checkpoint, "policies", aid)).get_weights())
   # ppo.load_checkpoint(args.defection_checkpoint)
 
   # update the config resources
@@ -114,19 +112,15 @@ def main():
   with open(f"n_c_{i}.json", mode="w", encoding="utf8") as f:
     json.dump(results, f)
 
-  for role in aids:
-    print(f"Update cooperate policy {role}")
-    ppo.remove_policy(role)
-    i += 1
-    policy = Policy.from_checkpoint(os.path.join(args.cooperation_checkpoint, "policies", role))
-    ppo.add_policy(policy_id=role, policy=policy)
+  for aid in aids:
+    print(f"Update cooperate policy {aid}")
+    ppo.get_policy(aid).set_weights(Policy.from_checkpoint(os.path.join(args.cooperation_checkpoint, "policies", aid)).get_weights())
 
-    print("Running setup()")
-    ppo.setup()
     print("Running evaluate()")
     results = ppo.evaluate()
     print(results)
 
+    i += 1
     with open(f"n_c_{i}.json", mode="w", encoding="utf8") as f:
       json.dump(results, f)
 
