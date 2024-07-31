@@ -23,6 +23,10 @@ def main():
   print("Start")
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument(
+    "--num_cpus", type=int, required=True, help="number of CPUs to use")
+  parser.add_argument(
+    "--n_episodes", type=int, required=True, help="number of episodes to evaluate over")
+  parser.add_argument(
       "--experiment_state",
       type=str,
       required=True,
@@ -45,13 +49,11 @@ def main():
 
   print("Calling init")
   ray.init(address="local",
-           num_cpus=4,
+           num_cpus=args.num_cpus,
            logging_level=logging.ERROR)
 
   register_env("meltingpot", utils.env_creator)
 
-  # fuck it: get the config from the env state and just update the number of players and self interest as needed
-  # will need to load in the policies
   print("Loading ExperimentAnalysis")
   experiment = ExperimentAnalysis(
       args.experiment_state,
@@ -68,51 +70,41 @@ def main():
   base_env = utils.env_creator(config["env_config"])
   aids = base_env._ordered_agent_ids
 
-  # load all the policies...
-
-  # load the algorithm state, so we have access to the config
-  # DO FROM_CHECKPOINT AND THEN ITERATIVELY ADD POLICY
-
 
   config = config.resources(num_gpus=0)
   config = config.env_runners(
       num_env_runners=0,
       num_envs_per_env_runner=1,
-      # create_env_on_local_worker=True,
   )
   config = config.evaluation(
-      evaluation_duration=1,
-      evaluation_num_env_runners=2,
+      evaluation_duration=args.n_episodes,
+      evaluation_num_env_runners=args.num_cpus - 1,
       evaluation_interval=1,
   )
-  #            new="AlgorithmConfig.num_cpus_for_main_process",
 
   print("Building PPO instance")
   ppo = config.build()
 
+  # load all the policies...
   # Start with all defect
   for aid in aids:
     print(f"Update defect policy {aid}")
     ppo.get_policy(aid).set_weights(Policy.from_checkpoint(os.path.join(args.defection_checkpoint, "policies", aid)).get_weights())
-  # ppo.load_checkpoint(args.defection_checkpoint)
 
-  # update the config resources
-  # do I need to update env_runners?
 
   # sweep over the possible policy pairings
 
-  # update the policy mapping functions and call evaluate
 
   print("Running evaluate()")
   results = ppo.evaluate()
   print(results)
 
   i = 0
-
-  with open(f"n_c_{i}.json", mode="w", encoding="utf8") as f:
+  with open(os.path.join(os.path.dirname(args.experiment_state), f"n_c_{i}.json"), mode="w", encoding="utf8") as f:
     json.dump(results, f)
 
   for aid in aids:
+    # update the policy mapping functions and call evaluate
     print(f"Update cooperate policy {aid}")
     ppo.get_policy(aid).set_weights(Policy.from_checkpoint(os.path.join(args.cooperation_checkpoint, "policies", aid)).get_weights())
 
@@ -121,7 +113,7 @@ def main():
     print(results)
 
     i += 1
-    with open(f"n_c_{i}.json", mode="w", encoding="utf8") as f:
+    with open(os.path.join(os.path.dirname(args.experiment_state), f"n_c_{i}.json"), mode="w", encoding="utf8") as f:
       json.dump(results, f)
 
 
