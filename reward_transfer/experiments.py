@@ -66,8 +66,8 @@ if __name__ == "__main__":
     type=int,
     required=True,
     help="Number of rollout workers, should be in [0,num_cpus]")
-  # parser.add_argument(
-  #   "--num_samples", type=int, default=1, help="Number of samples to run")
+  parser.add_argument(
+    "--num_samples", type=int, default=3, help="Number of samples to run for scratch training")
   parser.add_argument(
     "--envs_per_worker",
     type=int,
@@ -442,7 +442,7 @@ if __name__ == "__main__":
       log_to_file=False,
       callbacks=tune_callbacks,
       max_concurrent_trials=args.max_concurrent_trials,
-      num_samples=5,
+      num_samples=args.num_samples,
     )
 
   ray.shutdown()
