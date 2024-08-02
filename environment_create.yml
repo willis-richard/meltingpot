@@ -1,4 +1,4 @@
-name: paper_2
+name: mp_tf_2_14
 channels:
   - conda-forge
 dependencies:
@@ -6,7 +6,7 @@ dependencies:
 
   # framework
   ## if tf:
-  - tensorflow==2.15.0  # ==2.14.0  # installing the same as the module load version
+  - tensorflow-gpu==2.14.0  # compatible with cuda=11.8
   ## else if torch
   # - pytorch>=2.0.0
   # - torchvision>=0.15.2
@@ -20,21 +20,21 @@ dependencies:
   ## done
 
   # meltingpot deps
-  - absl-py
-  - chex
-  - dm-env
-  - dm-tree
-  - immutabledict
-  - ml-collections
-  - networkx
-  - numpy
+  - absl-py>=2.1.0
+  - chex>=0.1.86
+  - dm-env>=1.6
+  - dm-tree>=0.1.8
+  - immutabledict>=4.2.0
+  - ml-collections>=0.1.1
+  - networkx>=3.2.1
+  - numpy>=1.26.4
   - opencv  # only needed for evaluation?
-  - pandas
-  - pygame
-  - reactivex
+  - pandas>=2.2.2
+  - pygame>=2.6.0
+  - reactivex>=4.0.4
 
   # reward_transfer deps
-  - ray-rllib==2.23.0  # ==2.8.1  # or 2.9.0, this is the latest that works with the tensorflow version available
+  - ray-rllib==2.8.1  # 2.9.0 has a bug, so this is the latest that works with tf-2.14
   - optuna
   - wandb
   # - pandas

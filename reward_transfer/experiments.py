@@ -203,18 +203,15 @@ if __name__ == "__main__":
     entropy_coeff=1e-3,
     clip_param=0.32,
     vf_clip_param=2,
-  ).env_runners(
-    num_env_runners=args.rollout_workers,
-    num_envs_per_env_runner=args.envs_per_worker,
+  ).rollouts(
+    num_rollout_workers=args.rollout_workers,
+    num_envs_per_worker=args.envs_per_worker,
     rollout_fragment_length=400,
     batch_mode="complete_episodes",
     # observation_filter="MeanStdFilter",
   ).multi_agent(
     count_steps_by="env_steps",
     policy_mapping_fn=policy_mapping_fn,
-  ).fault_tolerance(
-    recreate_failed_env_runners=True,
-    num_consecutive_env_runner_failures_tolerance=3,
   ).environment(
     env="meltingpot",
   ).debugging(
@@ -309,7 +306,7 @@ if __name__ == "__main__":
       experiment = tune.run(
         run_or_experiment="PPO",
         name=name,
-        metric="env_runners/episode_reward_mean",
+        metric="episode_reward_mean",
         mode="max",
         stop={"training_iteration": args.n_iterations},
         config=config,
@@ -375,7 +372,7 @@ if __name__ == "__main__":
       experiment = tune.run(
         run_or_experiment="PPO",
         name=name,
-        metric="env_runners/episode_reward_mean",
+        metric="episode_reward_mean",
         mode="max",
         stop={"training_iteration": args.n_iterations},
         config=config,
@@ -430,7 +427,7 @@ if __name__ == "__main__":
     experiment = tune.run(
       run_or_experiment="PPO",
       name=name,
-      metric="env_runners/episode_reward_mean",
+      metric="episode_reward_mean",
       mode="max",
       stop={"training_iteration": args.n_iterations},
       config=config,

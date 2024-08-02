@@ -72,13 +72,13 @@ def main():
 
 
   config = config.resources(num_gpus=0)
-  config = config.env_runners(
-      num_env_runners=0,
-      num_envs_per_env_runner=1,
+  config = config.rollouts(
+      num_rollout_workers=0,
+      num_envs_per_worker=1,
   )
   config = config.evaluation(
       evaluation_duration=args.n_episodes,
-      evaluation_num_env_runners=args.num_cpus - 1,
+      evaluation_num_workers=args.num_cpus - 1,
       evaluation_interval=1,
   )
 
@@ -97,11 +97,11 @@ def main():
 
   print("Running evaluate()")
   results = ppo.evaluate()
-  print(results)
+  print(results["evaluation"]["sampler_results"])
 
   i = 0
   with open(os.path.join(os.path.dirname(args.experiment_state), f"n_c_{i}.json"), mode="w", encoding="utf8") as f:
-    json.dump(results, f)
+    json.dump(results["evaluation"]["sampler_results"], f)
 
   for aid in aids:
     # update the policy mapping functions and call evaluate
@@ -110,11 +110,11 @@ def main():
 
     print("Running evaluate()")
     results = ppo.evaluate()
-    print(results)
+    print(results["evaluation"]["sampler_results"])
 
     i += 1
     with open(os.path.join(os.path.dirname(args.experiment_state), f"n_c_{i}.json"), mode="w", encoding="utf8") as f:
-      json.dump(results, f)
+      json.dump(results["evaluation"]["sampler_results"], f)
 
 
 if __name__ == "__main__":

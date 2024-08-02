@@ -1,47 +1,47 @@
-name: paper_2
+name: mp_tf_2_14
 channels:
   - conda-forge
 dependencies:
-  - python>=3.11.7
+  - python
 
-  - tensorflow-cpu==2.15.0
+  - tensorflow-cpu==2.14.0
 
   # meltingpot deps
-  - absl-py>=2.1.0
-  - chex>=0.1.85
-  - dm-env>=1.6
+  - absl-py
+  - chex
+  - dm-env
   - dm-tree
-  - immutabledict>=4.1.0
-  - ml-collections>=0.1.1
-  - networkx>=3.2.1
-  - numpy>=1.26.3
+  - immutabledict
+  - ml-collections
+  - networkx
+  - numpy
   - opencv
-  - pandas>=2.2.0
-  - pygame>=2.5.2
-  - reactivex>=4.0.4
+  - pandas
+  - pygame
+  - reactivex
 
   # reward_transfer deps
-  - ray-rllib==2.23.0
-  - optuna>=3.5.0
+  - ray-rllib==2.8.1
+  - optuna
   # - pandas
 
   # optionals
-  - jupyterlab>=4.0.12
+  - jupyterlab
   - matplotlib
 
   # dev packages
-  - autoflake>=1.7.5
-  - epc>=0.0.5
+  - autoflake
+  - epc
   - pandas-stubs
-  - ptvsd>=4.3.2
+  - ptvsd
 
   # lsp deps
-  - pylsp-mypy>=0.6.8  # currently using anaconda-mode however
+  - pylsp-mypy
   # included by pylsp-mypy:
     # - isort
     # - python-lsp-server
 
-  - pip>=23.3.2
+  - pip
   - pip:
     - dmlab2d==1.0.0
 
