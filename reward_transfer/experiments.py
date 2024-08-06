@@ -365,8 +365,10 @@ if __name__ == "__main__":
     )
 
     ratio = [20, 10, 5, 3, 5/2, 2, 5/3, 4/3, 1]
-    # ratio = [20, 10, 5, 3, 5/2]
-    # ratio = [2, 5/3, 4/3, 1]
+    # If we are resuming
+    n_completed = len(df[condition]["self-interest"])
+    # Only do 2 at a time
+    ratio = ratio[(n_completed - 1):(n_completed + 1)]
     for s in [r / (n + r - 1) for r in ratio]:
       env_config["self-interest"] = s
 
@@ -387,7 +389,6 @@ if __name__ == "__main__":
         log_to_file=False,
         callbacks=tune_callbacks,
         max_concurrent_trials=args.max_concurrent_trials,
-        # resume=args.resume,
       )
 
       policy_checkpoint = experiment.trials[-1].checkpoint.path

@@ -1,5 +1,7 @@
 import tensorflow as tf
 
+print(f"TensorFlow version: {tf.__version__}")
+
 # Check if TensorFlow is built with CUDA (GPU) support
 print("Is TensorFlow built with CUDA:", tf.test.is_built_with_cuda())
 
@@ -13,4 +15,3 @@ if gpus:
        print("GPU details:", gpu)
 else:
     print("No GPU detected")
-

@@ -29,13 +29,13 @@ dependencies:
   - networkx
   - numpy
   - opencv  # only needed for evaluation?
-  - pandas
-  - pygame
-  - reactivex
+  - pygame>=2.6.0
+  - reactivex>=4.0.4
 
   # reward_transfer deps
-  - ray-rllib==2.23.0  # ==2.8.1  # or 2.9.0, this is the latest that works with the tensorflow version available
+  - ray-rllib==2.23.0  # ==2.8.1 (2.9.0 has a bug) is the latest that works with tf=2.14
   - optuna
+  - pandas>=2.2.2
   - wandb
   # - pandas
 

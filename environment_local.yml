@@ -16,14 +16,13 @@ dependencies:
   - networkx>=3.2.1
   - numpy>=1.26.3
   - opencv
-  - pandas>=2.2.0
   - pygame>=2.5.2
   - reactivex>=4.0.4
 
   # reward_transfer deps
   - ray-rllib==2.23.0
   - optuna>=3.5.0
-  # - pandas
+  - pandas>=2.2.0
 
   # optionals
   - jupyterlab>=4.0.12
