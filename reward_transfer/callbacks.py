@@ -51,7 +51,7 @@ class SaveResultsCallback(DefaultCallbacks):
   def __init__(self):
     super().__init__()
 
-  def on_train_result(self, *, algorithm, result, **kwargs) -> None:
+  def on_train_result(self, *, algorithm, metrics_logger, result, **kwargs) -> None:
 
     results_filepath = os.path.join(algorithm.config["working_folder"], "results.json")
 
@@ -61,7 +61,7 @@ class SaveResultsCallback(DefaultCallbacks):
     info["self-interest"] = 1 if self_interest is None else self_interest
     info["num_players"] = len(algorithm.config.env_config["roles"])
     info["training-mode"] = algorithm.config.get("training-mode")
-    info.update(result["hist_stats"])
+    info.update(result["env_runners"]["hist_stats"])
 
     with open(results_filepath, mode="a", encoding="utf8") as f:
       json.dump(info, f)
@@ -74,7 +74,7 @@ class UpdateTrainingCallback(DefaultCallbacks):
   def __init__(self):
     super().__init__()
 
-  def on_train_result(self, *, algorithm, result, **kwargs) -> None:
+  def on_train_result(self, *, algorithm, metrics_logger, result, **kwargs) -> None:
     # update lr and num players
     update_every = algorithm.config["epochs_per_curriculum"]
     logger.info("on_train_result::algorithm config roles: %s", algorithm.config["env_config"]["roles"])
