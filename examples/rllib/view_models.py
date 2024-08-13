@@ -103,11 +103,9 @@ def main():
       "--training",
       type=str,
       default="self-play",
-      choices=["self-play", "independent", "random", "single"],
+      choices=["self-play", "independent"],
       help="""self-play: all players share the same policy
-    independent: use n policies
-    random: only player_0 is a policy, the other agents are random
-    single: only one player in the environment""")
+    independent: use n policies""")
 
   args = parser.parse_args()
 
@@ -201,6 +199,7 @@ def main():
 
     game_display.blit(surf, dest=(0, 0))
     pygame.display.update()
+    # pgyame.image.save(game_display, "image_name.jpeg")
 
     if args.video:
       # Capture the frame for recording
@@ -233,8 +232,8 @@ def main():
 
       actions[i], states[i] = bot.step(timestep_bot, states[i])
 
-    timestep = env.step(actions + human_action)
-    print(actions + human_action, timestep.reward)
+    timestep = env.step(human_action + actions)
+    print(human_action + actions, timestep.reward)
     total_rewards = total_rewards + timestep.reward
 
   print(f"Total rewards: {total_rewards}")
