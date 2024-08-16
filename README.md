@@ -1,7 +1,13 @@
 # Resolving social dilemmas through reward transfer commitments
 
 This repository contains the code to reproduce the experiments from https://alaworkshop2023.github.io/papers/ALA2023_paper_65.pdf on branch resolving_sd.
-For further information, checkout that branch and view the README.md.
+
+It will also contain the code for the paper "Self-Interest Level Induces Cooperation in Markov Social Dilemmas" on branch markov_sd, when we release it.
+
+For further information, checkout those branches and view the README.md.
+
+
+
 
 ```shell
 git clone https://github.com/Muff2n/meltingpot.git --branch resolving_sd --single-branch --depth 1
