@@ -27,7 +27,8 @@ from reward_transfer.callbacks import LoadPolicyCallback, SaveResultsCallback
 LOGGING_LEVEL = "WARN"
 VERBOSE = 0  # 0: silent, 1: status
 
-def parse_arguments():
+def parse_arguments() -> argparse.Namespace:
+  """Parse command line arguments."""
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument(
     "--substrate",
@@ -86,12 +87,6 @@ def parse_arguments():
     type=str,
     default=None,
     help="wandb project name")
-  parser.add_argument(
-    "--training_mode",
-    type=str,
-    choices=["independent", "self-play"],
-    required=True,
-    help="self-play enables parameter sharing")
 
   subparsers = parser.add_subparsers(dest="training", required=True, help="Training mode")
 
@@ -104,6 +99,12 @@ def parse_arguments():
     type=str,
     default=None,
     help="Trial id to resume training from (if we had an error)")
+  parser_pretraining.add_argument(
+    "--training_mode",
+    type=str,
+    choices=["independent", "self-play"],
+    required=True,
+    help="self-play enables parameter sharing")
 
   parser_training = subparsers.add_parser("training", help="Iteratively decrease the self-interest")
   parser_training.add_argument(
@@ -116,6 +117,12 @@ def parse_arguments():
     type=int,
     required=True,
     help="Number of players")
+  parser_training.add_argument(
+    "--training_mode",
+    type=str,
+    choices=["independent", "self-play"],
+    required=True,
+    help="self-play enables parameter sharing")
 
   parser_scratch = subparsers.add_parser("scratch", help="Validate from scratch")
   parser_scratch.add_argument(
@@ -130,11 +137,17 @@ def parse_arguments():
     help="Self-interest level (resuming crashed training)")
   parser_scratch.add_argument(
     "--num_seeds", type=int, default=4, help="Number of samples to run for scratch training")
+  parser_scratch.add_argument(
+    "--training_mode",
+    type=str,
+    choices=["independent", "self-play"],
+    required=True,
+    help="self-play enables parameter sharing")
 
   return parser.parse_args()
 
 
-def setup_environment(args):
+def setup_environment(args: argparse.Namespace):
   register_env("meltingpot", utils.env_creator)
 
   substrate_config = substrate.get_config(args.substrate)
@@ -181,7 +194,7 @@ def create_model_config(base_env, substrate_definition):
   }
 
 
-def create_ppo_config(args, model, train_batch_size, policy_mapping_fn):
+def create_ppo_config(args: argparse.Namespace, model, train_batch_size, policy_mapping_fn, env_config):
   return PPOConfig().training(
       gamma=0.999,
       train_batch_size=train_batch_size,
@@ -198,6 +211,8 @@ def create_ppo_config(args, model, train_batch_size, policy_mapping_fn):
       num_envs_per_env_runner=args.envs_per_worker,
       rollout_fragment_length=400,
       batch_mode="complete_episodes",
+    ).environment(
+      env_config=env_config,
     ).multi_agent(
       count_steps_by="env_steps",
       policy_mapping_fn=policy_mapping_fn,
@@ -217,7 +232,18 @@ def create_ppo_config(args, model, train_batch_size, policy_mapping_fn):
     )
 
 
-def run_optimise(args, config, tune_callbacks):
+def run_optimise(args: argparse.Namespace, config, tune_callbacks):
+  def custom_trial_name_creator(trial: Trial) -> str:
+    """Create a custom name that includes hyperparameters."""
+    trial_name = f"{trial.trainable_name}_{trial.trial_id}"
+
+    attributes = ("sgd_minibatch_size", "num_sgd_iter", "lr", "lambda",
+                "vf_loss_coeff", "clip_param")
+    attributes_str = [f"{trial.config[a]:.5f}".rstrip("0").rstrip(".") for a in attributes]
+    trial_name += f"_{','.join(attributes_str)}"
+
+    return trial_name
+
   config = config.training(
     sgd_minibatch_size=tune.qrandint(5000, 10000, 2500),
     num_sgd_iter=tune.qrandint(8, 14, 2),
@@ -225,19 +251,9 @@ def run_optimise(args, config, tune_callbacks):
     lambda_=tune.quniform(0.95, 1.0, 0.01),
     vf_loss_coeff=tune.quniform(0.75, 1, 0.05),
     clip_param=tune.quniform(0.28, 0.36, 0.02),
+  ).multi_agent(
+    policies={"default": PolicySpec()}
   )
-
-  attributes = ("sgd_minibatch_size", "num_sgd_iter", "lr", "lambda",
-                "vf_loss_coeff", "clip_param")
-
-  def custom_trial_name_creator(trial: Trial) -> str:
-    """Create a custom name that includes hyperparameters."""
-    trial_name = f"{trial.trainable_name}_{trial.trial_id}"
-    if attributes is not None:
-      attributes_str = [f"{trial.config[a]:.5f}".rstrip("0").rstrip(".") for a in attributes]
-      trial_name += f"_{','.join(attributes_str)}"
-
-    return trial_name
 
   search_alg = OptunaSearch(
     metric="env_runners/episode_reward_mean",
@@ -271,7 +287,7 @@ def run_optimise(args, config, tune_callbacks):
 
   return experiment
 
-def setup_logging_utils(args, config):
+def setup_logging_utils(args: argparse.Namespace, config):
 
   def custom_trial_name_creator(trial: Trial) -> str:
     """Create a custom name that includes number of players and self-interest."""
@@ -307,7 +323,18 @@ def setup_logging_utils(args, config):
   return config, name, custom_trial_name_creator, checkpoint_config, checkpoints_log_filepath
 
 
-def run_pretraining(args, config, env_config, base_env, default_player_roles, tune_callbacks):
+def create_lr_and_policies(args: argparse.Namespace, n, ordered_agent_ids):
+  if args.training_mode == "independent":
+    lr = 7e-5
+    policies = {aid: PolicySpec() for aid in ordered_agent_ids[0:n]}
+  else:
+    lr = 7e-5 / n
+    policies = {"default": PolicySpec()}
+
+  return lr, policies
+
+
+def run_pretraining(args: argparse.Namespace, config, env_config, ordered_agent_ids, default_player_roles, tune_callbacks):
   config, name, custom_trial_name_creator, checkpoint_config, checkpoints_log_filepath = setup_logging_utils(args, config)
 
   # a passed in trial_id means training had an error and we wish to resume
@@ -325,12 +352,7 @@ def run_pretraining(args, config, env_config, base_env, default_player_roles, tu
   for n in range(start_n, len(default_player_roles) + 1):
     env_config["roles"] = default_player_roles[0:n]
 
-    if args.training_mode == "independent":
-      lr = 7e-5
-      policies = {aid: PolicySpec() for aid in base_env._ordered_agent_ids[0:n]}
-    else:
-      lr = 7e-5 / n
-      policies = {"default": PolicySpec()}
+    lr, policies = create_lr_and_policies(args, n, ordered_agent_ids)
 
     config = config.training(
       lr=lr
@@ -372,7 +394,7 @@ def run_pretraining(args, config, env_config, base_env, default_player_roles, tu
       f.write("\n")
 
 
-def run_training(args, config, env_config, base_env, default_player_roles, tune_callbacks):
+def run_training(args: argparse.Namespace, config, env_config, ordered_agent_ids, default_player_roles, tune_callbacks):
   config, name, custom_trial_name_creator, checkpoint_config, checkpoints_log_filepath = setup_logging_utils(args, config)
 
   n = args.num_players
@@ -385,12 +407,7 @@ def run_training(args, config, env_config, base_env, default_player_roles, tune_
   policy_checkpoint = df.loc[df[condition]["self-interest"].idxmin()]["policy_checkpoint"]
   config["policy_checkpoint"] = policy_checkpoint
 
-  if args.training_mode == "independent":
-    lr = 7e-5
-    policies = dict((aid, PolicySpec()) for aid in base_env._ordered_agent_ids[0:n])
-  else:
-    lr = 7e-5 / n
-    policies = {"default": PolicySpec()}
+  lr, policies = create_lr_and_policies(args, n, ordered_agent_ids)
 
   config = config.training(
     lr=lr
@@ -439,18 +456,13 @@ def run_training(args, config, env_config, base_env, default_player_roles, tune_
       f.write("\n")
 
 
-def run_scratch(args, config, env_config, base_env, default_player_roles, tune_callbacks):
+def run_scratch(args: argparse.Namespace, config, env_config, ordered_agent_ids, default_player_roles, tune_callbacks):
   config, name, custom_trial_name_creator, checkpoint_config, checkpoints_log_filepath = setup_logging_utils(args, config)
 
   n = args.num_players
   env_config["roles"] = default_player_roles[0:n]
 
-  if args.training_mode == "independent":
-    lr = 7e-5
-    policies = dict((aid, PolicySpec()) for aid in base_env._ordered_agent_ids[0:n])
-  else:
-    lr = 7e-5 / n
-    policies = {"default": PolicySpec()}
+  lr, policies = create_lr_and_policies(args, n, ordered_agent_ids)
 
   config = config.training(
     lr=lr
@@ -501,7 +513,7 @@ def main():
 
   policy_mapping_fn = lambda aid, *_, **__: aid if args.training_mode == "independent" else "default"
 
-  config = create_ppo_config(args, model, train_batch_size, policy_mapping_fn)
+  config = create_ppo_config(args, model, train_batch_size, policy_mapping_fn, env_config)
 
   tune_callbacks = [
       WandbLoggerCallback(
@@ -510,14 +522,16 @@ def main():
           log_config=False)
   ] if args.wandb is not None else None
 
+  ordered_agent_ids = base_env._ordered_agent_ids
+
   if args.training == "optimise":
     run_optimise(args, config, tune_callbacks)
   elif args.training == "pre-training":
-    run_pretraining(args, config, env_config, base_env, default_player_roles, tune_callbacks)
+    run_pretraining(args, config, env_config, ordered_agent_ids, default_player_roles, tune_callbacks)
   elif args.training == "training":
-    run_training(args, config, env_config, base_env, default_player_roles, tune_callbacks)
+    run_training(args, config, env_config, ordered_agent_ids, default_player_roles, tune_callbacks)
   elif args.training == "scratch":
-    run_scratch(args, config, env_config, base_env, default_player_roles, tune_callbacks)
+    run_scratch(args, config, env_config, ordered_agent_ids, default_player_roles, tune_callbacks)
 
   ray.shutdown()
 
