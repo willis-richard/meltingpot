@@ -264,8 +264,7 @@ def run_optimise(args: argparse.Namespace, config: PPOConfig) -> None:
     attributes_str = [f"{trial.config[a]:.5f}".rstrip("0").rstrip(".") for a in attributes]
     return f"{trial.trainable_name}_{trial.trial_id}_{','.join(attributes_str)}"
 
-
-    return trial_name
+  assert config.get("train_batch_size") >= 10000, f"train_batch_size must be greater than 10000. Suggest increasing --episodes_per_worker"
 
   config = config.training(
     sgd_minibatch_size=tune.qrandint(5000, 10000, 2500),
@@ -295,7 +294,7 @@ def run_optimise(args: argparse.Namespace, config: PPOConfig) -> None:
 
   tune.run(
     run_or_experiment="PPO",
-    name=args.substrate,
+    name=os.path.join(args.substrate, "optimise"),
     stop={"training_iteration": args.n_iterations},
     config=config,
     num_samples=args.num_samples,
@@ -524,9 +523,11 @@ def run_scratch(args: argparse.Namespace, config: ConfigDict, env_config: Mappin
   """
   config, name, custom_trial_name_creator, checkpoints_log_filepath = setup_logging_utils(args, config)
 
+  n = args.num_players
+
   env_config["roles"] = env_config["substrate_config"]["default_player_roles"][:n]
 
-  lr, policies = create_lr_and_policies(args, args.num_players, ordered_agent_ids)
+  lr, policies = create_lr_and_policies(args, n, ordered_agent_ids)
 
   env_config["self-interest"] = args.self_interest
 
@@ -575,20 +576,22 @@ def main():
 
   train_batch_size = (max(1, args.rollout_workers) * args.envs_per_worker * horizon * args.episodes_per_worker)
 
-  policy_mapping_fn = lambda aid, *_, **__: aid if args.training_mode == "independent" else "default"
+  if args.training == "optimise" or args.training_mode == "self-play":
+    policy_mapping_fn = lambda aid, *_, **__: "default"
+  else:
+    policy_mapping_fn = lambda aid, *_, **__: aid
 
   config = create_ppo_config(args, model, train_batch_size, policy_mapping_fn, env_config)
 
-  ordered_agent_ids = base_env._ordered_agent_ids
-
   if args.training == "optimise":
     run_optimise(args, config)
+
   elif args.training == "pre-training":
-    run_pretraining(args, config, env_config, ordered_agent_ids)
+    run_pretraining(args, config, env_config, base_env._ordered_agent_ids)
   elif args.training == "training":
-    run_training(args, config, env_config, ordered_agent_ids)
+    run_training(args, config, env_config, base_env._ordered_agent_ids)
   elif args.training == "scratch":
-    run_scratch(args, config, env_config, ordered_agent_ids)
+    run_scratch(args, config, env_config, base_env._ordered_agent_ids)
 
   ray.shutdown()
 
