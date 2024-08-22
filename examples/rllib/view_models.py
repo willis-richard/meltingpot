@@ -11,22 +11,46 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Runs the bots trained in self_play_train.py and renders in pygame.
-
-You must provide experiment_state, expected to be
-~/ray_results/PPO/experiment_state_YOUR_RUN_ID.json
+"""
+Runs the bots trained in self_play_train.py and renders in pygame.
 """
 
 import argparse
 
+import cv2
 import dm_env
 from dmlab2d.ui_renderer import pygame
+from ml_collections.config_dict import ConfigDict
 import numpy as np
-from ray.rllib.algorithms.registry import get_trainer_class
+from ray.rllib.algorithms.registry import _get_algorithm_class
 from ray.tune.analysis.experiment_analysis import ExperimentAnalysis
 from ray.tune.registry import register_env
 
-from . import utils
+from meltingpot import substrate
+from examples.rllib.utils import env_creator, RayModelPolicy
+
+
+def get_human_action():
+  a = None
+  for event in pygame.event.get():
+    if event.type == pygame.KEYDOWN:
+      key_pressed = pygame.key.get_pressed()
+      if key_pressed[pygame.K_SPACE]:
+        a = 0
+      if key_pressed[pygame.K_UP]:
+        a = 1
+      if key_pressed[pygame.K_DOWN]:
+        a = 2
+      if key_pressed[pygame.K_LEFT]:
+        a = 3
+      if key_pressed[pygame.K_RIGHT]:
+        a = 4
+      if key_pressed[pygame.K_z]:
+        a = 5
+      if key_pressed[pygame.K_x]:
+        a = 6
+      break  # removing this did not solve the bug
+  return a
 
 
 def main():
@@ -34,54 +58,121 @@ def main():
   parser.add_argument(
       "--experiment_state",
       type=str,
-      default="~/ray_results/PPO",
+      required=True,
       help="ray.tune experiment_state to load. The default setting will load"
       " the last training run created by self_play_train.py. If you want to use"
       " a specific run, provide a path, expected to be of the format "
       " ~/ray_results/PPO/experiment_state-DATETIME.json")
+  parser.add_argument(
+      "--checkpoint",
+      type=str,
+      default=None,
+      help="If provided, use this checkpoint instead of the last checkpoint")
+  parser.add_argument(
+      "--human", action="store_true", help="a human controls one of the bots")
+  parser.add_argument(
+      "--fps", type=int, default=8, help="Frames per second (default 8)")
+  parser.add_argument(
+      "--timesteps",
+      type=int,
+      default=500,
+      help="Number of timesteps to run the epsiode for")
+  parser.add_argument(
+      "--substrate",
+      type=str,
+      default=None,
+      help="Use this substrate instead of the original")
+  parser.add_argument(
+      "--video",
+      type=str,
+      default=None,
+      help="Save the recording at this filepath")
+  parser.add_argument(
+      "--training",
+      type=str,
+      default="self-play",
+      choices=["self-play", "independent"],
+      help="""self-play: all players share the same policy
+    independent: use n policies""")
 
   args = parser.parse_args()
 
   agent_algorithm = "PPO"
 
-  register_env("meltingpot", utils.env_creator)
+  register_env("meltingpot", env_creator)
 
   experiment = ExperimentAnalysis(
       args.experiment_state,
-      default_metric="episode_reward_mean",
+      default_metric="env_runners/episode_reward_mean",
       default_mode="max")
 
-  config = experiment.best_config
-  checkpoint_path = experiment.best_checkpoint
+  checkpoint_path = args.checkpoint if args.checkpoint is not None else experiment.best_checkpoint
 
-  trainer = get_trainer_class(agent_algorithm)(config=config)
-  trainer.restore(checkpoint_path)
+  config = experiment.best_config
+
+  config["explore"] = False
+  config["num_rollout_workers"] = 0
+
+  trainer = _get_algorithm_class(agent_algorithm)(config=config)
+  trainer.load_checkpoint(checkpoint_path)
 
   # Create a new environment to visualise
-  env = utils.env_creator(config["env_config"]).get_dmlab2d_env()
+  if args.substrate:
+    substrate_config = substrate.get_config(args.substrate)
+
+    env_config = ConfigDict({
+        "substrate": args.substrate,
+        "substrate_config": substrate_config,
+        # FIXME: Get roles from the training
+        "roles": substrate_config["default_player_roles"],
+        "scaled": 1
+    })
+  else:
+    env_config = config["env_config"]
+
+  env = env_creator(env_config)
+  action_space = env.action_space["player_0"]
+
+  # Setup the players
+  num_players = len(env._ordered_agent_ids)
+
+  if args.training == "independent":
+    policies = env._ordered_agent_ids
+  else:
+    policies = env_config["roles"]
 
   bots = [
-      utils.RayModelPolicy(trainer, f"agent_{i}")
-      for i in range(len(config["env_config"]["default_player_roles"]))
+      RayModelPolicy(
+          trainer,
+          env_config["substrate_config"]["individual_observation_names"],
+          policy) for policy in policies
   ]
+  bots = bots[1:] if args.human else bots
 
+  env = env.get_dmlab2d_env()
+  obs_spec = env.observation_spec()
+  shape = obs_spec[0]["WORLD.RGB"].shape
+
+  # Configure the pygame display
+  pygame.init()
+  scale = 1000 // max(int(shape[0]), int(shape[1]))
+  fps = args.fps
+  frame_size = (int(shape[1] * scale), int(shape[0] * scale))
+  game_display = pygame.display.set_mode(frame_size)
+  clock = pygame.time.Clock()
+  pygame.display.set_caption("DM Lab2d")
+
+  if args.video:
+    # Video recording setup
+    fourcc = cv2.VideoWriter_fourcc(*"XVID")
+    out = cv2.VideoWriter(args.video, fourcc, fps, frame_size)
+
+  total_rewards = np.zeros(num_players)
   timestep = env.reset()
   states = [bot.initial_state() for bot in bots]
   actions = [0] * len(bots)
 
-  # Configure the pygame display
-  scale = 4
-  fps = 5
-
-  pygame.init()
-  clock = pygame.time.Clock()
-  pygame.display.set_caption("DM Lab2d")
-  obs_spec = env.observation_spec()
-  shape = obs_spec[0]["WORLD.RGB"].shape
-  game_display = pygame.display.set_mode(
-      (int(shape[1] * scale), int(shape[0] * scale)))
-
-  for _ in range(config["horizon"]):
+  for _ in range(args.timesteps):
     obs = timestep.observation[0]["WORLD.RGB"]
     obs = np.transpose(obs, (1, 0, 2))
     surface = pygame.surfarray.make_surface(obs)
@@ -91,7 +182,29 @@ def main():
 
     game_display.blit(surf, dest=(0, 0))
     pygame.display.update()
+    # pgyame.image.save(game_display, "image_name.jpeg")
+
+    if args.video:
+      # Capture the frame for recording
+      frame = pygame.surfarray.array3d(game_display)
+      frame = cv2.transpose(frame)
+      # frame = cv2.flip(frame, 0)
+      frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+      out.write(frame)
+
     clock.tick(fps)
+
+    if args.human:
+      while True:
+        a = get_human_action()
+        # TODO: fix bug where two quick presses, e.g. 1,2, are counted as 1,1
+
+        if a is not None:
+          break
+
+      human_action = [a]
+    else:
+      human_action = []
 
     for i, bot in enumerate(bots):
       timestep_bot = dm_env.TimeStep(
@@ -102,7 +215,16 @@ def main():
 
       actions[i], states[i] = bot.step(timestep_bot, states[i])
 
-    timestep = env.step(actions)
+    timestep = env.step(human_action + actions)
+    print(human_action + actions, timestep.reward)
+    total_rewards = total_rewards + timestep.reward
+
+  print(f"Total rewards: {total_rewards}")
+
+  pygame.quit()
+  if args.video:
+    out.release()
+    cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":

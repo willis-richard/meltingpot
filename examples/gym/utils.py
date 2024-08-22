@@ -13,7 +13,7 @@
 # limitations under the License.
 """Shared utils for third-party library examples."""
 
-from typing import Any, Mapping
+from typing import Any, List, Mapping
 
 import dm_env
 from gymnasium import spaces
@@ -24,35 +24,36 @@ PLAYER_STR_FORMAT = 'player_{index}'
 _WORLD_PREFIX = 'WORLD.'
 
 
-def timestep_to_observations(timestep: dm_env.TimeStep) -> Mapping[str, Any]:
+def timestep_to_observations(timestep: dm_env.TimeStep,
+                             individual_obs: List[str]) -> Mapping[str, Any]:
   gym_observations = {}
   for index, observation in enumerate(timestep.observation):
     gym_observations[PLAYER_STR_FORMAT.format(index=index)] = {
         key: value
         for key, value in observation.items()
-        if _WORLD_PREFIX not in key
+        if key in individual_obs
     }
   return gym_observations
 
 
 def remove_world_observations_from_space(
-    observation: spaces.Dict) -> spaces.Dict:
+    observation: spaces.Dict, individual_obs: List[str]) -> spaces.Dict:
   return spaces.Dict({
-      key: observation[key] for key in observation if _WORLD_PREFIX not in key
+      key: observation[key] for key in observation if key in individual_obs
   })
 
 
 def spec_to_space(spec: tree.Structure[dm_env.specs.Array]) -> spaces.Space:
-  """Converts a dm_env nested structure of specs to a Gym Space.
+  """Converts a dm_env nested structure of specs to a Gymnasium Space.
 
-  BoundedArray is converted to Box Gym spaces. DiscreteArray is converted to
-  Discrete Gym spaces. Using Tuple and Dict spaces recursively as needed.
+  BoundedArray is converted to Box Gymnasium spaces. DiscreteArray is converted to
+  Discrete Gymnasium spaces. Using Tuple and Dict spaces recursively as needed.
 
   Args:
     spec: The nested structure of specs
 
   Returns:
-    The Gym space corresponding to the given spec.
+    The Gymnasium space corresponding to the given spec.
   """
   if isinstance(spec, dm_env.specs.DiscreteArray):
     return spaces.Discrete(spec.num_values)
@@ -71,4 +72,4 @@ def spec_to_space(spec: tree.Structure[dm_env.specs.Array]) -> spaces.Space:
   elif isinstance(spec, dict):
     return spaces.Dict({key: spec_to_space(s) for key, s in spec.items()})
   else:
-    raise ValueError('Unexpected spec of type {}: {}'.format(type(spec), spec))
+    raise ValueError(f'Unexpected spec of type {type(spec)}: {spec}')

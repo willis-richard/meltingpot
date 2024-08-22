@@ -27,3 +27,10 @@ __pycache__/
 # Saved models.
 /examples/results/
 /meltingpot/assets/
+/reward_transfer/results/
+/results/
+
+.virtual_documents
+callbacks.log
+*png
+*jpeg

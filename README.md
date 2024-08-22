@@ -1,9 +1,90 @@
 # Self-Interest Level Induces Cooperation in Markov Social Dilemmas
 
-Coming soon
+This is the code to reproduce the experiments from https://openreview.net/forum?id=bVCMgNbvLo&noteId=bVCMgNbvLo, which is under submission at AAAI.
 
+## Installation
 
-# Melting Pot
+Install the dependencies using conda
+
+```shell
+conda create -f environment.yml
+```
+
+Activate the environment and add the repo to the PYTHONPATH
+
+```shell
+conda activate markov_sd
+export PYTHONPATH=$(pwd)
+```
+
+## Explanation
+
+`./reward_transfer` contains the files to run the experiments from the paper.
+`./examples/rllib/utils.py` contains the reward exchange implementation within a Melting Pot environment wrapper.
+`./data` contains our experiment runs as shown in the paper, along with jupyter notebooks to reproduce the plots and results table.
+
+## Reproduce
+
+To run the experiments, first setup the shared information.
+
+```shell
+export EXPERIMENT_FLAGS="--wandb <YOUR_PROJECT_NAME> \
+  --substrate <SUBSTRATE> \
+  --local_dir <RESULT_DIR> \
+  --framework tf2 \
+  --num_cpus 16 \
+  --num_gpus 1 \
+  --rollout_workers 15 \
+  --episodes_per_worker 2 \
+  --max_concurrent_trials 1"
+```
+
+To run the optimisation
+```shell
+python3 reward_transfer/experiments.py $EXPERIMENT_FLAGS \
+  --n_iterations 50 \
+  optimise \
+  --num_samples 100
+```
+
+To run the pre-training
+```shell
+python3 reward_transfer/experiments.py $EXPERIMENT_FLAGS \
+  --n_iterations 300 \
+  pre-training \
+  --training_mode independent
+```
+
+To run the training
+```shell
+python3 reward_transfer/experiments.py $EXPERIMENT_FLAGS \
+  --n_iterations 300 \
+  training \
+  --trial_id <TRIAL_ID> \
+  --training_mode independent
+```
+
+To train from scratch
+```shell
+python3 reward_transfer/experiments.py $EXPERIMENT_FLAGS \
+  --n_iterations 500 \
+  scratch \
+  --num_players <NUM_PLAYERS> \
+  --self_interest <SELF_INTEREST> \
+  --num_seeds 4 \
+  --training_mode independent
+```
+
+To produce Schelling diagram results
+```shell
+python3 reward_transfer/schelling.py --defection_checkpoint <DEFECTION_CHECKPOINT_PATH> \
+  --cooperation_checkpoint <COOPERATION_CHECKPOINT_PATH> \
+  --experiment_state <EXPERIMENT_STATE_PATH> \
+  --num_cpus <NUM_CPUS> \
+  --n_episodes 225
+```
+
+# Original Melting Pot Readme
 
 *A suite of test scenarios for multi-agent reinforcement learning.*
 
