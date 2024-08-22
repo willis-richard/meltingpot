@@ -67,35 +67,3 @@ class SaveResultsCallback(DefaultCallbacks):
       json.dump(info, f)
       f.write("\n")
       logger.debug("on_train_result::%s", info)
-
-
-class UpdateTrainingCallback(DefaultCallbacks):
-
-  def __init__(self):
-    super().__init__()
-
-  def on_train_result(self, *, algorithm, metrics_logger, result, **kwargs) -> None:
-    # update lr and num players
-    update_every = algorithm.config["epochs_per_curriculum"]
-    logger.info("on_train_result::algorithm config roles: %s", algorithm.config["env_config"]["roles"])
-    logger.info("on_train_result::algorithm config lr: %s", algorithm.config["lr"])
-
-    if result["training_iteration"] % update_every == 0:
-      default_player_roles = algorithm.config["env_config"]["substrate_config"]["default_player_roles"]
-      n = 1 + result["training_iteration"] // update_every
-
-      algorithm.config["lr"] = algorithm.config["LR"] / n
-
-      new_env_config = algorithm.config["env_config"]
-      new_env_config["roles"] = default_player_roles[0:n]
-
-      algorithm.config.environment(env_config=new_env_config)
-      algorithm.workers.foreach_worker(lambda worker: worker.config.environment(env_config=new_env_config))
-
-      algorithm.workers.reset([])
-      algorithm.workers._setup(
-        validate_env=algorithm.config.validate_env_runners_after_construction,
-        config=algorithm.config,
-        num_env_runners=algorithm.config.num_env_runners,
-        local_env_runner=True
-      )

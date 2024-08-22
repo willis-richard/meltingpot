@@ -7,6 +7,7 @@ import json
 import numpy as np
 import os
 import pandas as pd
+from typing import Any, Tuple, Dict, List, Mapping, Callable, Sequence, Optional
 
 from meltingpot import substrate
 from ml_collections.config_dict import ConfigDict
@@ -147,30 +148,39 @@ def parse_arguments() -> argparse.Namespace:
   return parser.parse_args()
 
 
-def setup_environment(args: argparse.Namespace):
+def setup_environment(args: argparse.Namespace) -> Tuple[Dict[str, Any], int, int]:
+  """Register the environment creator function with rllib, and create the default
+  environment config."""
   register_env("meltingpot", utils.env_creator)
 
   substrate_config = substrate.get_config(args.substrate)
-  default_player_roles = substrate_config.default_player_roles
   env_module = importlib.import_module(
       f"meltingpot.configs.substrates.{args.substrate}")
-  substrate_definition = env_module.build(default_player_roles, substrate_config)
+  substrate_definition = env_module.build(substrate_config.default_player_roles, substrate_config)
 
   env_config = ConfigDict({
       "substrate": args.substrate,
       "substrate_config": substrate_config,
-      "roles": default_player_roles,
+      "roles": substrate_config.default_player_roles,
       "scaled": 1
   })
 
-  return substrate_definition, env_config, default_player_roles
+  return env_config, substrate_definition["spriteSize"], substrate_definition["maxEpisodeLengthFrames"]
 
 
-def create_model_config(base_env, substrate_definition):
+def create_model_config(base_env: utils.MeltingPotEnv, sprite_size) -> Dict[str, Any]:
+  """Create the neural network config, as per rllib.models.catalogue
+
+    Args:
+        base_env: The environment created using MeltingPot, so that we may
+                  access the observation space
+        sprite_size: The size of the pixel represenation of a grid square
+
+    Returns:
+        A dictionary containing the model configuration.
+  """
   rgb_shape = base_env.observation_space["player_0"]["RGB"].shape
-  sprite_size = substrate_definition["spriteSize"]
-  sprite_x = rgb_shape[0]
-  sprite_y = rgb_shape[1]
+  sprite_x, sprite_y = rgb_shape[0], rgb_shape[1]
 
   if sprite_size == 8:
     conv_filters = [[16, [8, 8], 8], [32, [4, 4], 1],
@@ -179,7 +189,7 @@ def create_model_config(base_env, substrate_definition):
     conv_filters = [[16, [3, 3], 1], [32, [3, 3], 1],
                     [64, [sprite_x, sprite_y], 1]]
   else:
-    assert False, "Unknown sprite_size of {sprite_size}"
+    raise ValueError(f"Unsuppoerted sprite_size {sprite_size}")
 
   return {
       "conv_filters": conv_filters,
@@ -194,7 +204,7 @@ def create_model_config(base_env, substrate_definition):
   }
 
 
-def create_ppo_config(args: argparse.Namespace, model, train_batch_size, policy_mapping_fn, env_config):
+def create_ppo_config(args: argparse.Namespace, model: Mapping[str, Any], train_batch_size: int, policy_mapping_fn: Callable[str, str], env_config: Mapping[str, Any]) -> PPOConfig:
   return PPOConfig().training(
       gamma=0.999,
       train_batch_size=train_batch_size,
@@ -213,14 +223,13 @@ def create_ppo_config(args: argparse.Namespace, model, train_batch_size, policy_
       batch_mode="complete_episodes",
     ).environment(
       env_config=env_config,
+      env="meltingpot",
     ).multi_agent(
       count_steps_by="env_steps",
       policy_mapping_fn=policy_mapping_fn,
     ).fault_tolerance(
       recreate_failed_env_runners=True,
       num_consecutive_env_runner_failures_tolerance=3,
-    ).environment(
-      env="meltingpot",
     ).debugging(
       log_level=LOGGING_LEVEL,
     ).resources(
@@ -232,15 +241,29 @@ def create_ppo_config(args: argparse.Namespace, model, train_batch_size, policy_
     )
 
 
-def run_optimise(args: argparse.Namespace, config, tune_callbacks):
+def create_tune_callbacks(args: argparse.Namespace) -> Optional[List[WandbLoggerCallback]]:
+  """Create WandB callbacks for logging. The environment needs to have set a
+  WANDB_API_KEY environment variable"""
+  if args.wandb is not None:
+    return [
+      WandbLoggerCallback(
+        project=args.wandb,
+        api_key=os.environ["WANDB_API_KEY"],
+        log_config=False
+      )
+    ]
+  return None
+
+
+def run_optimise(args: argparse.Namespace, config: PPOConfig) -> None:
+  """Run hyper-parameter optimisation in a single-agent environment for PPO"""
   def custom_trial_name_creator(trial: Trial) -> str:
     """Create a custom name that includes hyperparameters."""
-    trial_name = f"{trial.trainable_name}_{trial.trial_id}"
-
     attributes = ("sgd_minibatch_size", "num_sgd_iter", "lr", "lambda",
                 "vf_loss_coeff", "clip_param")
     attributes_str = [f"{trial.config[a]:.5f}".rstrip("0").rstrip(".") for a in attributes]
-    trial_name += f"_{','.join(attributes_str)}"
+    return f"{trial.trainable_name}_{trial.trial_id}_{','.join(attributes_str)}"
+
 
     return trial_name
 
@@ -270,7 +293,7 @@ def run_optimise(args: argparse.Namespace, config, tune_callbacks):
       brackets=1,
   )
 
-  experiment = tune.run(
+  tune.run(
     run_or_experiment="PPO",
     name=args.substrate,
     stop={"training_iteration": args.n_iterations},
@@ -280,25 +303,34 @@ def run_optimise(args: argparse.Namespace, config, tune_callbacks):
     search_alg=search_alg,
     scheduler=scheduler,
     verbose=VERBOSE,
+    trial_name_creator=custom_trial_name_creator,
     log_to_file=False,
-    callbacks=tune_callbacks,
+    callbacks=create_tune_callbacks(args),
     max_concurrent_trials=args.max_concurrent_trials,
   )
 
-  return experiment
 
-def setup_logging_utils(args: argparse.Namespace, config):
+def setup_logging_utils(args: argparse.Namespace, config: PPOConfig) -> Tuple[PPOConfig, str, Callable[[Trial], str], str]:
+  """Set up logging utilities for the experiment.
+  Args:
+      args: Parsed command-line arguments.
+      config: PPO configuration.
+
+  Returns:
+      A tuple containing:
+      - Updated PPO configuration
+      - Experiment name
+      - Custom trial name creator function
+      - Path to the checkpoints log file
+  """
 
   def custom_trial_name_creator(trial: Trial) -> str:
     """Create a custom name that includes number of players and self-interest."""
-    trial_name = f"{trial.trainable_name}_{trial.config['TRIAL_ID']}"
+    trial_name = f"{trial.trainable_name}_{trial.config['trial_id']}"
     trial_name += f"_n={len(trial.config['env_config'].get('roles'))}"
 
     self_interest = trial.config["env_config"].get("self-interest")
-    if self_interest is not None:
-      trial_name += f"_s={self_interest:.3f}"
-    else:
-      trial_name += "_s=1.000"
+    trial_name += f"_s={self_interest:.3f}" if self_interest is not None else "_s=1.000"
 
     trial_name += f"_{trial.config.get('training-mode')}"
 
@@ -309,48 +341,81 @@ def setup_logging_utils(args: argparse.Namespace, config):
       [SaveResultsCallback, LoadPolicyCallback])
   )
 
-  checkpoint_config = CheckpointConfig(checkpoint_at_end=True)
-
-  TRIAL_ID = args.trial_id if hasattr(args, 'trial_id') and args.trial_id is not None else Trial.generate_id()
-  config["TRIAL_ID"] = TRIAL_ID
-  name = os.path.join(args.substrate, TRIAL_ID)
+  trial_id = args.trial_id if hasattr(args, 'trial_id') and args.trial_id is not None else Trial.generate_id()
+  config["trial_id"] = trial_id
+  name = os.path.join(args.substrate, trial_id)
   working_folder = os.path.join(args.local_dir, name)
   config["working_folder"] = working_folder
   checkpoints_log_filepath = os.path.join(working_folder, "checkpoints.json")
 
   config["training-mode"] = args.training_mode
 
-  return config, name, custom_trial_name_creator, checkpoint_config, checkpoints_log_filepath
+  return config, name, custom_trial_name_creator, checkpoints_log_filepath
 
 
-def create_lr_and_policies(args: argparse.Namespace, n, ordered_agent_ids):
+def create_lr_and_policies(args: argparse.Namespace, num_players: int, ordered_agent_ids: Sequence[str]) -> Tuple[float, Dict[str, PolicySpec]]:
+  """Create learning rate and policies based on the training mode and number of players.
+
+  Args:
+      args: Parsed command-line arguments.
+      n: Number of players.
+      ordered_agent_ids: Sequence of ordered agent IDs.
+
+  Returns:
+      A tuple containing:
+      - Learning rate (float)
+      - Dictionary of policies (Dict[str, PolicySpec])
+  """
   if args.training_mode == "independent":
     lr = 7e-5
-    policies = {aid: PolicySpec() for aid in ordered_agent_ids[0:n]}
-  else:
-    lr = 7e-5 / n
+    policies = {aid: PolicySpec() for aid in ordered_agent_ids[:num_players]}
+  else:  # self-play
+    lr = 7e-5 / num_players
     policies = {"default": PolicySpec()}
 
   return lr, policies
 
 
-def run_pretraining(args: argparse.Namespace, config, env_config, ordered_agent_ids, default_player_roles, tune_callbacks):
-  config, name, custom_trial_name_creator, checkpoint_config, checkpoints_log_filepath = setup_logging_utils(args, config)
+def log_checkpoint_info(config: PPOConfig, checkpoints_log_filepath: str) -> None:
+  """Log checkpoint information to a file."""
+  info = {
+      "self-interest": config.env_config.get("self-interest", 1),
+      "num_players": len(config.env_config["roles"]),
+      "policy_checkpoint": config["policy_checkpoint"],
+      "training-mode": config.get("training-mode")
+  }
+  with open(checkpoints_log_filepath, mode="a", encoding="utf8") as f:
+    json.dump(info, f)
+    f.write("\n")
 
-  # a passed in trial_id means training had an error and we wish to resume
+
+def run_pretraining(args: argparse.Namespace, config: PPOConfig, env_config: Mapping[str, Any], ordered_agent_ids: Sequence[str]) -> None:
+  """Train a policy (either independent or with parameter sharing) while
+  iteratively increasing the number of players in the environment, up to the
+  maximum
+
+  Args:
+      args: Parsed command-line arguments.
+      config: Initial PPO configuration.
+      env_config: Environment configuration.
+      ordered_agent_ids: Sequence of ordered agent IDs that the Melting Pot
+                         environment expects.
+  """
+  config, name, custom_trial_name_creator, checkpoints_log_filepath = setup_logging_utils(args, config)
+
+  start_n = 1
+  # a passed in trial_id means we wish to resume from the last checkpoint
   if args.trial_id is not None:
     with open(checkpoints_log_filepath, mode="r", encoding="utf8") as f:
       info = json.loads(f.readlines()[-1])
-      self_interest = info["self-interest"]
-      if self_interest != 1:
-        env_config["self-interest"] = self_interest
-      start_n = info["num_players"] + 1
+      if info["self-interest"] != 1:
+        env_config["self-interest"] = info["self_interest"]
+      start_n += info["num_players"]
       config["policy_checkpoint"] = info["policy_checkpoint"]
-  else:
-    start_n = 1
 
+  default_player_roles = env_config["substrate_config"]["default_player_roles"]
   for n in range(start_n, len(default_player_roles) + 1):
-    env_config["roles"] = default_player_roles[0:n]
+    env_config["roles"] = default_player_roles[:n]
 
     lr, policies = create_lr_and_policies(args, n, ordered_agent_ids)
 
@@ -370,35 +435,36 @@ def run_pretraining(args: argparse.Namespace, config, env_config, ordered_agent_
       stop={"training_iteration": args.n_iterations},
       config=config,
       storage_path=args.local_dir,
-      checkpoint_config=checkpoint_config,
+      checkpoint_config=CheckpointConfig(checkpoint_at_end=True),
       verbose=VERBOSE,
       trial_name_creator=custom_trial_name_creator,
       trial_dirname_creator=custom_trial_name_creator,
       log_to_file=False,
-      callbacks=tune_callbacks,
+      callbacks=create_tune_callbacks(args),
       max_concurrent_trials=args.max_concurrent_trials,
     )
 
     policy_checkpoint = experiment.trials[-1].checkpoint.path
     config["policy_checkpoint"] = policy_checkpoint
 
-    # checkpoint logging
-    info = {}
-    self_interest = config.env_config.get("self-interest")
-    info["self-interest"] = 1 if self_interest is None else self_interest
-    info["num_players"] = len(config.env_config["roles"])
-    info["policy_checkpoint"] = policy_checkpoint
-    info["training-mode"] = config.get("training-mode")
-    with open(checkpoints_log_filepath, mode="a", encoding="utf8") as f:
-      json.dump(info, f)
-      f.write("\n")
+    log_checkpoint_info(config, checkpoints_log_filepath)
 
 
-def run_training(args: argparse.Namespace, config, env_config, ordered_agent_ids, default_player_roles, tune_callbacks):
-  config, name, custom_trial_name_creator, checkpoint_config, checkpoints_log_filepath = setup_logging_utils(args, config)
+def run_training(args: argparse.Namespace, config: PPOConfig, env_config: Mapping[str, Any], ordered_agent_ids: Sequence[str]) -> None:
+  """Starting from a pre-trained policy, continue training while iteratively
+     decreasing the self-interest of the agents.
+
+  Args:
+      args: Parsed command-line arguments.
+      config: Initial PPO configuration.
+      env_config: Environment configuration.
+      ordered_agent_ids: Sequence of ordered agent IDs that the Melting Pot
+                         environment expects.
+  """
+  config, name, custom_trial_name_creator, checkpoints_log_filepath = setup_logging_utils(args, config)
 
   n = args.num_players
-  env_config["roles"] = default_player_roles[0:n]
+  env_config["roles"] = env_config["substrate_config"]["default_player_roles"][:n]
 
   df = pd.read_json(checkpoints_log_filepath, lines=True)
   condition = (df["num_players"] == n) & \
@@ -418,8 +484,7 @@ def run_training(args: argparse.Namespace, config, env_config, ordered_agent_ids
   ratio = [20, 10, 5, 3, 5/2, 2, 5/3, 4/3, 1]
   # If we are resuming
   n_completed = len(df[condition]["self-interest"])
-  ratio = ratio[(n_completed - 1):]
-  for s in [r / (n + r - 1) for r in ratio]:
+  for s in [r / (n + r - 1) for r in ratio[(n_completed - 1):]]:
     env_config["self-interest"] = s
 
     config = config.environment(env_config=env_config)
@@ -432,47 +497,46 @@ def run_training(args: argparse.Namespace, config, env_config, ordered_agent_ids
       stop={"training_iteration": args.n_iterations},
       config=config,
       storage_path=args.local_dir,
-      checkpoint_config=checkpoint_config,
+      checkpoint_config=CheckpointConfig(checkpoint_at_end=True),
       verbose=VERBOSE,
       trial_name_creator=custom_trial_name_creator,
       trial_dirname_creator=custom_trial_name_creator,
       log_to_file=False,
-      callbacks=tune_callbacks,
+      callbacks=create_tune_callbacks(args),
       max_concurrent_trials=args.max_concurrent_trials,
     )
 
     policy_checkpoint = experiment.trials[-1].checkpoint.path
     config["policy_checkpoint"] = policy_checkpoint
-
-    # checkpoint logging
-    info = {}
-    self_interest = config.env_config.get("self-interest")
-    info["self-interest"] = 1 if self_interest is None else self_interest
-    info["num_players"] = len(config.env_config["roles"])
-    info["policy_checkpoint"] = policy_checkpoint
-    info["training-mode"] = args.training_mode
-    with open(checkpoints_log_filepath, mode="a", encoding="utf8") as f:
-      json.dump(info, f)
-      f.write("\n")
+    log_checkpoint_info(config, checkpoints_log_filepath)
 
 
-def run_scratch(args: argparse.Namespace, config, env_config, ordered_agent_ids, default_player_roles, tune_callbacks):
-  config, name, custom_trial_name_creator, checkpoint_config, checkpoints_log_filepath = setup_logging_utils(args, config)
+def run_scratch(args: argparse.Namespace, config: ConfigDict, env_config: Mapping[str, Any], ordered_agent_ids: Sequence[str]) -> None:
+  """Run an experiment starting from a newly initialised policy, and holding the
+     self-interest level constant.
 
-  n = args.num_players
-  env_config["roles"] = default_player_roles[0:n]
+  Args:
+      args: Parsed command-line arguments.
+      config: Initial PPO configuration.
+      env_config: Environment configuration.
+      ordered_agent_ids: Sequence of ordered agent IDs that the Melting Pot
+                         environment expects.
+  """
+  config, name, custom_trial_name_creator, checkpoints_log_filepath = setup_logging_utils(args, config)
 
-  lr, policies = create_lr_and_policies(args, n, ordered_agent_ids)
+  env_config["roles"] = env_config["substrate_config"]["default_player_roles"][:n]
+
+  lr, policies = create_lr_and_policies(args, args.num_players, ordered_agent_ids)
+
+  env_config["self-interest"] = args.self_interest
 
   config = config.training(
     lr=lr
   ).multi_agent(
     policies=policies,
+  ).environment(
+    env_config=env_config
   )
-
-  env_config["self-interest"] = args.self_interest
-
-  config = config.environment(env_config=env_config)
 
   tune.run(
     run_or_experiment="PPO",
@@ -482,12 +546,12 @@ def run_scratch(args: argparse.Namespace, config, env_config, ordered_agent_ids,
     stop={"training_iteration": args.n_iterations},
     config=config,
     storage_path=args.local_dir,
-    checkpoint_config=checkpoint_config,
+    checkpoint_config=CheckpointConfig(checkpoint_at_end=True),
     verbose=VERBOSE,
     trial_name_creator=custom_trial_name_creator,
     trial_dirname_creator=custom_trial_name_creator,
     log_to_file=False,
-    callbacks=tune_callbacks,
+    callbacks=create_tune_callbacks(args),
     max_concurrent_trials=args.max_concurrent_trials,
     num_samples=args.num_seeds,
   )
@@ -503,35 +567,28 @@ def main():
       logging_level=LOGGING_LEVEL,
       _temp_dir=args.tmp_dir)
 
-  substrate_definition, env_config, default_player_roles = setup_environment(args)
+  env_config, sprite_size, horizon = setup_environment(args)
 
   base_env = utils.env_creator(env_config)
 
-  model = create_model_config(base_env, substrate_definition)
+  model = create_model_config(base_env, sprite_size)
 
-  train_batch_size = max(1, args.rollout_workers) * args.envs_per_worker * substrate_definition["maxEpisodeLengthFrames"] * args.episodes_per_worker
+  train_batch_size = (max(1, args.rollout_workers) * args.envs_per_worker * horizon * args.episodes_per_worker)
 
   policy_mapping_fn = lambda aid, *_, **__: aid if args.training_mode == "independent" else "default"
 
   config = create_ppo_config(args, model, train_batch_size, policy_mapping_fn, env_config)
 
-  tune_callbacks = [
-      WandbLoggerCallback(
-          project=args.wandb,
-          api_key=os.environ["WANDB_API_KEY"],
-          log_config=False)
-  ] if args.wandb is not None else None
-
   ordered_agent_ids = base_env._ordered_agent_ids
 
   if args.training == "optimise":
-    run_optimise(args, config, tune_callbacks)
+    run_optimise(args, config)
   elif args.training == "pre-training":
-    run_pretraining(args, config, env_config, ordered_agent_ids, default_player_roles, tune_callbacks)
+    run_pretraining(args, config, env_config, ordered_agent_ids)
   elif args.training == "training":
-    run_training(args, config, env_config, ordered_agent_ids, default_player_roles, tune_callbacks)
+    run_training(args, config, env_config, ordered_agent_ids)
   elif args.training == "scratch":
-    run_scratch(args, config, env_config, ordered_agent_ids, default_player_roles, tune_callbacks)
+    run_scratch(args, config, env_config, ordered_agent_ids)
 
   ray.shutdown()
 
