@@ -241,10 +241,14 @@ def create_ppo_config(args: argparse.Namespace, model: Mapping[str, Any],
       recreate_failed_env_runners=True,
       num_consecutive_env_runner_failures_tolerance=3,
   ).debugging(
-      log_level=LOGGING_LEVEL,).resources(
-          num_gpus=min(args.num_gpus, 1),).framework(
-              framework=args.framework,).reporting(
-                  metrics_num_episodes_for_smoothing=1,)
+      log_level=LOGGING_LEVEL
+  ).resources(
+      num_gpus=min(args.num_gpus, 1)
+  ).framework(
+      framework=args.framework
+  ).reporting(
+      metrics_num_episodes_for_smoothing=1
+  )
 
 
 def create_tune_callbacks(
