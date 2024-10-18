@@ -2,10 +2,13 @@
 
 This repository contains the code to reproduce the experiments from https://alaworkshop2023.github.io/papers/ALA2023_paper_65.pdf on branch resolving_sd.
 
-It will also contain the code for the paper "Self-Interest Level Induces Cooperation in Markov Social Dilemmas" on branch markov_sd, when we release it.
+Subsequently, the paper has been split into a game theory paper and an experimental paper.
+
+The game theory paper, "Resolving Social Dilemmas with Minimal Reward Transfer is published in JAAMAS https://link.springer.com/article/10.1007/s10458-024-09675-4. The code for this paper is in a separate repo at https://github.com/willis-richard/reward_transfer_matrix/
+
+The experimental paper, "Self-Interest Level Induces Cooperation in Markov Social Dilemmas" has its code on branch markov_sd.
 
 For further information, checkout those branches and view the README.md.
-
 
 
 
