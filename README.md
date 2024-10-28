@@ -1,10 +1,6 @@
 # Resolving Social Dilemmas Through Reward Transfer Commitments
 
-This is the code to reproduce the experiments from https://alaworkshop2023.github.io/papers/ALA2023_paper_65.pdf, which appeared at the Adaptive and Learning Agents Workshop 2023.
-
-A later version appeared at the Safe and Trustworthy AI 2023 workshop https://www.stai.uk/stai-23-iclp.
-
-The game theoretic part of this paper has been expanded and is under review at a journal. A pre-print can be viewed at https://arxiv.org/abs/2310.12928.
+This is the code to reproduce the experiments for [Resolving Social Dilemmas Through Reward Transfer Commitments](https://alaworkshop2023.github.io/papers/ALA2023_paper_65.pdf), which appeared at the Adaptive and Learning Agents Workshop 2023. A later version appeared at the [Safe and Trustworthy AI 2023 workshop](https://www.stai.uk/stai-23-iclp).
 
 ## Installation
 
