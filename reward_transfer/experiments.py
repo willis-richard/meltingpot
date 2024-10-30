@@ -265,7 +265,7 @@ def create_tune_callbacks(
   return None
 
 
-def run_optimise(args: argparse.Namespace, config: PPOConfig) -> None:
+def run_optimise(args: argparse.Namespace, config: PPOConfig, env_config: Mapping[str, Any]) -> None:
   """Run hyper-parameter optimisation in a single-agent environment for PPO"""
 
   def custom_trial_name_creator(trial: Trial) -> str:
@@ -289,6 +289,10 @@ def run_optimise(args: argparse.Namespace, config: PPOConfig) -> None:
       vf_loss_coeff=tune.quniform(0.75, 1, 0.05),
       clip_param=tune.quniform(0.28, 0.36, 0.02),
   ).multi_agent(policies={"default": PolicySpec()})
+
+  env_config["roles"] = env_config["roles"][:1]
+
+  config = config.environment(env_config=env_config)
 
   search_alg = OptunaSearch(
       metric="env_runners/episode_reward_mean",
@@ -605,8 +609,7 @@ def main():
                              env_config)
 
   if args.training == "optimise":
-    run_optimise(args, config)
-
+    run_optimise(args, config, env_config)
   elif args.training == "pre-training":
     run_pretraining(args, config, env_config, base_env._ordered_agent_ids)
   elif args.training == "training":
