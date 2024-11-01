@@ -100,7 +100,7 @@ def get_config():
       "RGB": specs.OBSERVATION["RGB"],
       "READY_TO_SHOOT": specs.OBSERVATION["READY_TO_SHOOT"],
       # Debug only (do not use the following observations in policies).
-      "WORLD.RGB": specs.rgb(184, 184),
+      "WORLD.RGB": specs.rgb(23 * base_config.SPRITE_SIZE, 23 * base_config.SPRITE_SIZE),
   })
 
   # The roles assigned to each player.
