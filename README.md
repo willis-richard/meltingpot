@@ -2,6 +2,10 @@
 
 This is the code to reproduce the experiments for [Resolving Social Dilemmas Through Reward Transfer Commitments](https://alaworkshop2023.github.io/papers/ALA2023_paper_65.pdf), which appeared at the Adaptive and Learning Agents Workshop 2023. A later version appeared at the [Safe and Trustworthy AI 2023 workshop](https://www.stai.uk/stai-23-iclp).
 
+This work was split into two parts:
+- A reinforcement learning paper can be viewed at the branch markov_sd, accepted to IJCAI 2025, the arXiv version can be viewed [here](https://arxiv.org/abs/2501.16138).
+- A game theoretic paper published in JAAMAS can be viewed [here](https://link.springer.com/article/10.1007/s10458-024-09675-4).
+
 ## Installation
 
 Install the dependencies using miniconda
