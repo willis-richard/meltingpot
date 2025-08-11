@@ -1,6 +1,10 @@
 # Quantifying the Self-Interest Level of Markov Social Dilemmas
 
-This is the code to reproduce the paper submitted to IJCAI 2025.
+This is the code to the paper appearing in IJCAI 2025, and arXiv version can be viewed [here](https://arxiv.org/abs/2501.16138).
+
+A related game theoretic paper published in JAAMAS can be viewed [here](https://link.springer.com/article/10.1007/s10458-024-09675-4).
+
+An earlier version of these works can be found on the branch resolving_sd.
 
 ## Installation
 
