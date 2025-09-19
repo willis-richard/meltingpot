@@ -1,18 +1,14 @@
 # Information
 
-This repository contains the code to reproduce the experiments from [Resolving social dilemmas through reward transfer commitments](https://alaworkshop2023.github.io/papers/ALA2023_paper_65.pdf) on branch resolving_sd.
+This repository contains the code to reproduce the experiments from [Quantifying the Self-Interest Level of Markov Social Dilemmas](https://www.ijcai.org/proceedings/2025/0033.pdf) appearing in IJCAI 2025 on branch markov\_sd and the experiments from [Resolving social dilemmas through reward transfer commitments](https://alaworkshop2023.github.io/papers/ALA2023_paper_65.pdf) appearing in ALA 2023 on branch resolving\_sd.
 
-Subsequently, the paper has been split into a game theory paper and an experimental paper.
-
-The game theory paper, [Resolving Social Dilemmas with Minimal Reward Transfer](https://link.springer.com/article/10.1007/s10458-024-09675-4) has been published in JAAMAS. The code for this paper is in a separate [repo](https://github.com/willis-richard/reward_transfer_matrix/).
-
-The experimental paper, "Self-Interest Level Induces Cooperation in Markov Social Dilemmas", which uses multi-agent reinforcement learning in Markov Games, has its code on branch markov_sd.
-
-For further information, checkout those branches and view the README.md. For example, to check out the resolving_sd branch:
+For further information, checkout those branches and view the README.md. For example, to check out the markov\_sd branch:
 
 ```shell
-git clone https://github.com/Muff2n/meltingpot.git --branch resolving_sd --single-branch --depth 1
+git clone https://github.com/Muff2n/meltingpot.git --branch markov_sd --single-branch --depth 1
 ```
+
+A related game theory paper [Resolving Social Dilemmas with Minimal Reward Transfer](https://link.springer.com/article/10.1007/s10458-024-09675-4) appeared in JAAMAS. The code for this paper is in a separate [repo](https://github.com/willis-richard/reward_transfer_matrix/).
 
 # Melting Pot
 
