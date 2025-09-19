@@ -1,10 +1,8 @@
 # Quantifying the Self-Interest Level of Markov Social Dilemmas
 
-This is the code to the paper appearing in IJCAI 2025, and arXiv version can be viewed [here](https://arxiv.org/abs/2501.16138).
+This branch contains the code to reproduce the experiments from [Quantifying the Self-Interest Level of Markov Social Dilemmas](https://www.ijcai.org/proceedings/2025/0033.pdf) appearing in IJCAI 2025. An arXiv version can be viewed [here](https://arxiv.org/abs/2501.16138).
 
-A related game theoretic paper published in JAAMAS can be viewed [here](https://link.springer.com/article/10.1007/s10458-024-09675-4).
-
-An earlier version of these works can be found on the branch resolving_sd.
+A related game theory paper [Resolving Social Dilemmas with Minimal Reward Transfer](https://link.springer.com/article/10.1007/s10458-024-09675-4) appeared in JAAMAS. The code for this paper is in a separate [repo](https://github.com/willis-richard/reward_transfer_matrix/).
 
 ## Installation
 
